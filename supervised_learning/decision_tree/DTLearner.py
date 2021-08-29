@@ -9,7 +9,7 @@ class DTLearner(object):
     :type verbose: bool
     """
 
-    def __init__(self, verbose=False, leaf_size=1):
+    def __init__(self):
         """
         Constructor method
         """
