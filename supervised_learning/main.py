@@ -14,13 +14,15 @@ from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import plot_confusion_matrix
-from imblearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline as imbalancePipeline
+from sklearn.pipeline import Pipeline as sklearnPipeline
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.model_selection import learning_curve
 from collections import Counter
 import time
 from functools import wraps
+from sklearn.feature_selection import SequentialFeatureSelector
 
 RANDOM_STATE = 1337
 
@@ -132,7 +134,7 @@ def get_imbalanced_data_pipeline():
     over = SMOTE(sampling_strategy=0.5, random_state=RANDOM_STATE)
     under = RandomUnderSampler(sampling_strategy=0.5, random_state=RANDOM_STATE)
     steps = [('over', over), ('under', under), ('model', model)]
-    pipeline = Pipeline(steps=steps)
+    pipeline = imbalancePipeline(steps=steps)
 
     parameters_to_tune = {
         'model__max_depth': range(3, 20),
@@ -196,17 +198,68 @@ def run_shoppers(dataroot):
     plt.clf()
     plot_learning_curve(optimal_clf, 'Decision Tree Learning Curve', X_train, y_train, cv=cv)
 
+def feature_selection_get_cols(direction, dataframe, mask):
+    num_columns = len(dataframe.columns)
+    num_bools = len(mask)
+
+    if direction == 'forward':
+        difference = num_columns - num_bools
+        for i in range(0, difference):
+            mask.append(False)
+        return dataframe.loc[:, mask]
+    elif direction == 'backward':
+        print("uh oh backwards direction")
+        exit(1)
+
 def run_ford(dataroot):
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
     df_test = pd.read_csv(dataroot + 'fordTest.csv')
     y_train = df_train['IsAlert']
     X_train = df_train.drop('IsAlert', axis=1)
     x_test = df_test.drop('IsAlert', axis=1)
-
-
+    y_test = df_test['IsAlert']
+    cross_validation_folds = 10
+    sfs_direction='forward'
+    base_clf = dt.DecisionTreeClassifier()
+    #a float for n_features_to_select = % of features to select
+    sfs = SequentialFeatureSelector(estimator=base_clf, direction=sfs_direction, scoring='accuracy', n_features_to_select=0.5, n_jobs=-1, cv=cross_validation_folds)
     #TODO: do feature selection with SFS from this article:
     #https://scikit-learn.org/0.24/modules/generated/sklearn.feature_selection.SequentialFeatureSelector.html
     #https://towardsdatascience.com/5-feature-selection-method-from-scikit-learn-you-should-know-ed4d116e4172
+
+    parameters_to_tune = {
+        'estimator__max_depth': range(3, 20),
+        'estimator__criterion': ('gini', 'entropy'),
+        'estimator__ccp_alpha': [0.0, 0.000005, 0.00005, 0.0005, 0.005],
+        # 'model__min_samples_split':range(2,10),
+        # 'model__min_samples_leaf':range(1,5),
+        # 'model__max_features': ['sqrt', 'log2', None],
+        'estimator__random_state': [RANDOM_STATE]
+    }
+
+    gs = GridSearchCV(
+        sfs,
+        param_grid=parameters_to_tune,
+        cv=cross_validation_folds,
+        scoring='accuracy',
+        #verbose=3,
+        n_jobs=-1)
+    gs.fit(X=X_train, y=y_train)
+    print(gs.best_estimator_)
+    sfs_results = gs.best_estimator_
+    # sfs_results = gs.best_estimator_.steps[0][1]
+    # optimal_clf = gs.best_estimator_.steps[1][1]
+    best_features_mask = sfs_results.get_support()
+    selected_feature_names = feature_selection_get_cols(sfs_direction, X_train, best_features_mask)
+    print('Original feature set: ', X_train.columns.values)
+    print('Best features:', selected_feature_names.columns.values)
+    print("Best parameters via GridSearch", gs.best_params_)
+    print('Best score:', gs.best_score_)
+
+    print('X_train shape before: '+str(X_train.shape))
+    optimal_X_train = sfs_results.transform(X_train)
+    print('X_train shape after: '+str(optimal_X_train.shape))
+
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
     if passed_arg.startswith('/'):
