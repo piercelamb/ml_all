@@ -222,11 +222,16 @@ def run_ford(dataroot):
     sfs_direction='forward'
     base_clf = dt.DecisionTreeClassifier()
     #a float for n_features_to_select = % of features to select
-    sfs = SequentialFeatureSelector(estimator=base_clf, direction=sfs_direction, scoring='accuracy', n_features_to_select=0.5, n_jobs=-1, cv=cross_validation_folds)
-    #TODO: do feature selection with SFS from this article:
-    #https://scikit-learn.org/0.24/modules/generated/sklearn.feature_selection.SequentialFeatureSelector.html
-    #https://towardsdatascience.com/5-feature-selection-method-from-scikit-learn-you-should-know-ed4d116e4172
+    sfs_results = SequentialFeatureSelector(estimator=base_clf, direction=sfs_direction, scoring='accuracy', n_features_to_select=0.5, n_jobs=-1, cv=cross_validation_folds)
 
+    best_features_mask = sfs_results.get_support()
+    selected_feature_names = feature_selection_get_cols(sfs_direction, X_train, best_features_mask)
+    print('Original feature set: ', X_train.columns.values)
+    print('Best features:', selected_feature_names.columns.values)
+    print('X_train shape before: '+str(X_train.shape))
+    optimal_X_train = sfs_results.transform(X_train)
+    print('X_train shape after: '+str(optimal_X_train.shape))
+    print("Starting gridsearch...")
     parameters_to_tune = {
         'estimator__max_depth': range(3, 20),
         'estimator__criterion': ('gini', 'entropy'),
@@ -238,27 +243,20 @@ def run_ford(dataroot):
     }
 
     gs = GridSearchCV(
-        sfs,
+        sfs_results.estimator,
         param_grid=parameters_to_tune,
         cv=cross_validation_folds,
         scoring='accuracy',
         #verbose=3,
         n_jobs=-1)
-    gs.fit(X=X_train, y=y_train)
-    print(gs.best_estimator_)
-    sfs_results = gs.best_estimator_
-    # sfs_results = gs.best_estimator_.steps[0][1]
-    # optimal_clf = gs.best_estimator_.steps[1][1]
-    best_features_mask = sfs_results.get_support()
-    selected_feature_names = feature_selection_get_cols(sfs_direction, X_train, best_features_mask)
-    print('Original feature set: ', X_train.columns.values)
-    print('Best features:', selected_feature_names.columns.values)
+    gs.fit(X=optimal_X_train, y=y_train)
+    clf = gs.best_estimator_
     print("Best parameters via GridSearch", gs.best_params_)
-    print('Best score:', gs.best_score_)
+    print('Best cross-validation score:', gs.best_score_)
 
-    print('X_train shape before: '+str(X_train.shape))
-    optimal_X_train = sfs_results.transform(X_train)
-    print('X_train shape after: '+str(optimal_X_train.shape))
+    test_score = get_max_score(clf, x_test, y_test)
+    print("Test data score: ", test_score)
+
 
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
