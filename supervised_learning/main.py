@@ -8,7 +8,7 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from sklearn import tree as dt
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import RobustScaler
 from sklearn.compose import make_column_transformer
@@ -188,11 +188,12 @@ def get_validation_curve(param, options, score, clf_type, clf, X_train, y_train,
         score_training = []
         score_testing  = []
         for option in options:
-            if param == 'max_depth':
-                clf=dt.DecisionTreeClassifier(max_depth=option, random_state=RANDOM_STATE, criterion='entropy')
-            elif param == 'criterion':
-                clf = dt.DecisionTreeClassifier(max_depth=4, random_state=RANDOM_STATE, criterion=option)
-            train_score = cross_validate(clf,X_train, y_train, cv=10, scoring=score, return_estimator=True)
+            print("Trying option: "+str(option))
+            if param == 'n_estimators':
+                clf=AdaBoostClassifier(n_estimators=option, learning_rate=0.1)
+            elif param == 'learning_rate':
+                clf = AdaBoostClassifier(n_estimators=35, learning_rate=option)
+            train_score = cross_validate(clf,X_train, y_train, cv=10, scoring=score, return_estimator=True, n_jobs=-1)
             #get the estimator with the highest score
             max_score = max(train_score['test_score'])
             index = np.where(train_score['test_score'] == max_score)[0][0]
@@ -213,13 +214,12 @@ def get_validation_curve(param, options, score, clf_type, clf, X_train, y_train,
         max_score = max(score_testing)
         index = score_testing.index(max_score)
         best_max_depth = options[index]
-        print(clf_type+" on scoring method "+score+" best_max_depth: "+str(best_max_depth))
-        tree = dt.DecisionTreeClassifier(max_depth=best_max_depth, random_state=RANDOM_STATE)
+        print(clf_type+" on scoring method "+score+" "+ param+ " : "+str(best_max_depth))
+        tree = AdaBoostClassifier(n_estimators=35, learning_rate=0.1)
         tree.fit(X_train, y_train)
         y_pred = tree.predict(X_test)
         print(clf_type+" on scoring method "+score+" Accuracy score: " +str(accuracy_score(y_test, y_pred)))
-        print(clf_type + " on scoring method " + score + " recall score: " + str(recall_score(y_test, y_pred)))
-        print(clf_type + " on scoring method " + score + " precision score: " + str(precision_score(y_test, y_pred)))
+        print(clf_type + " on scoring method " + score + " score: " + str(f1_score(y_test, y_pred)))
         get_confusion_matrix(tree, X_test, y_test, 'OSI Confusion Matrix (' + clf_type + ')',
                              clf_type + '_'+score+'_OSI_confusion_matrix.png')
         plot_learning_curve(tree, 'Learning Curve (' + clf_type + ')', X_train, y_train, cv=10, scoring=score,
@@ -289,9 +289,17 @@ def run_shoppers(dataroot):
 
     }
 
-    type_to_run = 'decision_tree'
-    scoring = ['recall', 'precision']
-    validation_curves = {'max_depth': [4]}
+    type_to_run = 'ada_boost'
+    scoring = ['f1']
+    #scoring = ['precision', 'recall']
+    validation_curves_ada = {
+        #'n_estimators': [25,75,125,175,225,275,325,375],
+        #'n_estimators': [25,35,45,55,65,75,85,95,100],
+        'learning_rate': [0.0001, 0.001, 0.01, 0.1, 1.0]
+    }
+    validation_curves_dt = {
+        'max_depth': [1,2,3,4,5,6,7,8,9,10,15,20]
+    }
     use_all_scoring_methods = True
     execute_validation_curves = True
     for clf_type, clf_info in classifiers_and_parameters.items():
@@ -302,7 +310,7 @@ def run_shoppers(dataroot):
                     for score in scoring:
                         print('Executing on '+score)
                         if execute_validation_curves:
-                            for param, options in validation_curves.items():
+                            for param, options in validation_curves_ada.items():
                                 print("Working on param: "+param)
                                 get_validation_curve(param, options, score, clf_type, clf, X_train, y_train, X_test, y_test)
 
