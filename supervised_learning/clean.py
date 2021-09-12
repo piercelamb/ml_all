@@ -68,6 +68,56 @@ def get_data_OSI():
     X_test = scaler.transform(X_test)
     return X_train, y_train, X_test, y_test
 
+def munge_ford_data(trainx, trainy, testx, testy):
+    """ This function is used to pre-processed the Ford data set in order
+    to reduce the feature space and improve run time.
+    """
+
+    # Search for highly correlated things
+    # c = trainx.corr().abs()
+    # s = c.unstack()
+    # so = s.order(kind="quicksort", na_last=False)[::-1]
+
+    # Drop P4, V6, V10, E9, E2, E9, V8 b/c they are highly correlated (>0.5)
+    trainx = trainx.drop(['P4', 'V6', 'V10', 'E9', 'E2'], axis=1)
+    testx = testx.drop(['P4', 'V6', 'V10', 'E9', 'E2'], axis=1)
+
+    # Drop P8, V7, V9 because their values are all 0
+    trainx = trainx.drop(['P8', 'V7', 'V9'],axis=1)
+    testx = testx.drop(['P8', 'V7', 'V9'], axis=1)
+
+    # Lump together all buckets greater than 4 in E7 and E8
+    trainx.loc[trainx.E7 > 4, 'E7'] = 4
+    trainx.loc[trainx.E8 > 4, 'E8'] = 4
+    testx.loc[testx.E7 > 4, 'E7'] = 4
+    testx.loc[testx.E8 > 4, 'E8'] = 4
+
+    # Check columns for NaN , i.e. missing values
+    # has_nan = pandas.isnull(trainx).any(0).nonzero()
+
+    # Scale zero mean and unit variance for numerical/continous data
+    # Exclude categorical variables E3,E7, E8, V5
+    numerical_features = [x for x in trainx.columns if x not in
+                          ['E3', 'E7', 'E8', 'V5']]
+    scaler = preprocessing.StandardScaler().fit(
+        trainx.loc[:, numerical_features])
+    trainx.loc[:, numerical_features] = scaler.transform(
+        trainx.loc[:, numerical_features])
+    testx.loc[:, numerical_features] = scaler.transform(
+        testx.loc[:, numerical_features])
+
+    # # Optionally sub-sample the train data
+    # rows = random.sample(trainx.index, 600000)
+    # trainx = trainx.iloc[rows, ]
+    # trainy = trainy.iloc[rows, ]
+    #
+    # # Optionally sub-sample test data
+    # rows = random.sample(testx.index, 120000)
+    # testx = testx.iloc[rows, ]
+    # testy = testy.iloc[rows, ]
+
+    return trainx, trainy, testx, testy
+
 def get_data_ford(dataset_sample, num_features):
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
     df_test = pd.read_csv(dataroot + 'fordTest.csv')
@@ -79,19 +129,23 @@ def get_data_ford(dataset_sample, num_features):
         X_train = df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
         X_test = df_test.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
 
-    else:
+    elif num_features == 'small':
         #Best Feature Selection
         print("Selecting SFS Forward features")
         X_train = df_train[['P6', 'E9', 'V10']]
         X_test = df_test[['P6', 'E9', 'V10']]
+    elif num_features == 'munge':
+        print("Munging ford data")
+        X_train, y_train, X_test, y_test = munge_ford_data(df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1), y_train,df_test.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1),y_test)
+
     if dataset_sample != 0:
         print("Sampling the training set at: "+str(dataset_sample))
         X_train, X_test_new, y_train, y_test_new = train_test_split(X_train, y_train, train_size=dataset_sample,
                                                             random_state=RANDOM_STATE)
-    scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train = scaler.transform(X_train)
-    X_test = scaler.transform(X_test)
+    # scaler = StandardScaler()
+    # scaler.fit(X_train)
+    # X_train = scaler.transform(X_train)
+    # X_test = scaler.transform(X_test)
     return X_train, y_train, X_test, y_test
 
 def plot_learning_curve(is_iterative, model,title,X_train,y_train,cv, filename,scoring):
@@ -186,7 +240,7 @@ def initialize_a_param(clf, param, X_train, y_train, cv, clf_type, scoring, is_s
         param_grid=param,
         cv=cv,
         scoring=scoring,
-        n_jobs=-1)
+        n_jobs=-2)
     clf.fit(X=X_train, y=y_train)
     initial_value = clf.best_params_[param_name]
     print('Initial value for '+param_name+' = '+str(initial_value))
@@ -434,7 +488,7 @@ def run_shoppers(dataroot):
 #TODO: See if the distribution of trues to falses is the same between training and testing
 def run_ford(dataroot):
     training_sample = 0.3
-    num_features = 'full'
+    num_features = 'munge'
     X_train, y_train, X_test, y_test = get_data_ford(training_sample, num_features)
     scoring = 'accuracy'
     cross_val_folds = 10

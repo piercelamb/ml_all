@@ -2,8 +2,8 @@ conda env create --file environment.yml
 conda activate cs7641
 either python main.py shoppers or
 /Users/plamb/opt/miniconda3/envs/cs7641/bin/python main.py shoppers
-
-
+cd Documents/Personal/Academic/Georgia\ Tech/Classes/ML/hw/supervised_learning/
+/Users/plamb/opt/miniconda3/envs/cs7641/bin/python clean.py ford
 Had to use columntransformer to get numerical values for my string columns
 note that if using columntransformer, i cant inverse transform and get my strings back
 
