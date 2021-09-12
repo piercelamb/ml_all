@@ -6,7 +6,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from numpy import mean
 from sklearn.svm import SVC
-
+from sklearn.preprocessing import StandardScaler
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from sklearn import tree as dt
@@ -62,18 +62,36 @@ def get_data_OSI():
     clean_attrs = column_trans.fit_transform(attributes)
     X_train, X_test, y_train, y_test = train_test_split(clean_attrs, target, stratify=target, test_size=0.3,
                                                         random_state=RANDOM_STATE)
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
     return X_train, y_train, X_test, y_test
 
-def get_data_ford():
+def get_data_ford(dataset_sample, num_features):
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
     df_test = pd.read_csv(dataroot + 'fordTest.csv')
     df_pred = pd.read_csv(dataroot + 'Solution.csv')
     y_train = df_train['IsAlert']
     y_test = df_pred['Prediction']
-    X_train = df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
-    #Best Feature Selection
-    X_train = X_train[['P6', 'E9', 'V10']]
-    X_test = df_test[['P6', 'E9', 'V10']]
+    if num_features == 'full':
+        print("Selecting all features")
+        X_train = df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
+        X_test = df_test.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
+
+    else:
+        #Best Feature Selection
+        print("Selecting SFS Forward features")
+        X_train = df_train[['P6', 'E9', 'V10']]
+        X_test = df_test[['P6', 'E9', 'V10']]
+    if dataset_sample != 0:
+        print("Sampling the training set at: "+str(dataset_sample))
+        X_train, X_test_new, y_train, y_test_new = train_test_split(X_train, y_train, train_size=dataset_sample,
+                                                            random_state=RANDOM_STATE)
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
     return X_train, y_train, X_test, y_test
 
 def plot_learning_curve(is_iterative, model,title,X_train,y_train,cv, filename,scoring):
@@ -383,19 +401,19 @@ def run_shoppers(dataroot):
     #     {'n_estimators': [50, 100, 150, 200]},
     #     {'learning_rate': [0.0001, 0.001, 0.01]}
     # )
-    run_svc(
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        scoring,
-        cross_val_folds,
-        smote,
-        run_type,
-        {'C': [1,2,3,4,5,6,7,8,9,10]},  # validation_curve
-        #{'kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']},  # validation_curve
-        {'kernel': ['rbf', 'sigmoid']},  # validation_curve
-    )
+    # run_svc(
+    #     X_train,
+    #     y_train,
+    #     X_test,
+    #     y_test,
+    #     scoring,
+    #     cross_val_folds,
+    #     smote,
+    #     run_type,
+    #     {'C': [1,2,3,4,5,6,7,8,9,10]},  # validation_curve
+    #     #{'kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']},  # validation_curve
+    #     {'kernel': ['rbf', 'sigmoid']},  # validation_curve
+    # )
     #preference bias
     #Locality: Near points are similar
     #smoothness: averaging over nearest neighbors
@@ -415,7 +433,9 @@ def run_shoppers(dataroot):
 
 #TODO: See if the distribution of trues to falses is the same between training and testing
 def run_ford(dataroot):
-    X_train, y_train, X_test, y_test = get_data_ford()
+    training_sample = 0.3
+    num_features = 'full'
+    X_train, y_train, X_test, y_test = get_data_ford(training_sample, num_features)
     scoring = 'accuracy'
     cross_val_folds = 10
     smote = (False, None, None)
@@ -430,22 +450,22 @@ def run_ford(dataroot):
     #     smote,
     #     run_type,
     #     {'max_depth': [3,5,9,10,12,14,16,18,20]},
-    #     None
+    #     {'criterion': ['gini', 'entropy']}
     # )
-    # run_nn(
-    #     X_train,
-    #     y_train,
-    #     X_test,
-    #     y_test,
-    #     scoring,
-    #     cross_val_folds,
-    #     smote,
-    #     run_type,
-    #     #(10,10,10) = 3 hidden layers with 10 units, (10,) = 1 hidden layer with 10 units
-    #     #had to play with the below numbers a lot
-    #     {'hidden_layer_sizes': [(100,), (150,), (200,), (100,100), (100,100,100)]},  # validation_curve
-    #     {'activation': ['logistic', 'tanh', 'relu', 'identity']},  # validation_curve
-    # )
+    run_nn(
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+        scoring,
+        cross_val_folds,
+        smote,
+        run_type,
+        #(10,10,10) = 3 hidden layers with 10 units, (10,) = 1 hidden layer with 10 units
+        #had to play with the below numbers a lot
+        {'hidden_layer_sizes': [(100,), (150,), (200,), (100,100), (100,100,100)]},  # validation_curve
+        {'activation': ['logistic', 'tanh', 'relu', 'identity']},  # validation_curve
+    )
     # run_ada(
     #     X_train,
     #     y_train,
@@ -470,19 +490,19 @@ def run_ford(dataroot):
     #     {'n_neighbors': [3,4,5,6,7,8,9,10]},  # validation_curve
     #     {'weights': ['uniform', 'distance']},  # validation_curve
     # )
-    run_svc(
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        scoring,
-        cross_val_folds,
-        smote,
-        run_type,
-        {'C': [1,2,3,4,5,6,7,8,9,10]},  # validation_curve
-        #{'kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']},  # validation_curve
-        {'kernel': ['rbf', 'sigmoid']},  # validation_curve
-    )
+    # run_svc(
+    #     X_train,
+    #     y_train,
+    #     X_test,
+    #     y_test,
+    #     scoring,
+    #     cross_val_folds,
+    #     smote,
+    #     run_type,
+    #     {'C': [1,2,3,4,5,6,7,8,9,10]},  # validation_curve
+    #     #{'kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']},  # validation_curve
+    #     {'kernel': ['rbf', 'sigmoid']},  # validation_curve
+    # )
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
     if passed_arg.startswith('/'):
