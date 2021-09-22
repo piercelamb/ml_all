@@ -49,74 +49,73 @@ def timeit(func):
         return output
     return timed_function
 
-def get_data_OSI():
+def get_data_OSI(smote):
     datapath = dataroot + 'online_shoppers_intention.csv'
     df = pd.read_csv(datapath)
     target = df['Revenue']
     attributes = df.drop('Revenue', axis=1, )
     string_columns = ['Month', 'VisitorType', 'Weekend']
+    # numerical_columns = ['Administrative', 'Administrative_Duration', 'Informational',
+    #    'Informational_Duration', 'ProductRelated', 'ProductRelated_Duration',
+    #    'BounceRates', 'ExitRates', 'PageValues', 'SpecialDay',
+    #    'OperatingSystems', 'Browser', 'Region', 'TrafficType',]
+    # scaler = preprocessing.StandardScaler().fit(
+    #     attributes.loc[:, numerical_columns])
+    # attributes.loc[:, numerical_columns] = scaler.transform(
+    #     attributes.loc[:, numerical_columns])
+    # attributes.loc[:, numerical_columns] = scaler.transform(
+    #     attributes.loc[:, numerical_columns])
     column_trans = make_column_transformer(
         (OneHotEncoder(handle_unknown='ignore'), string_columns),
         remainder='passthrough'
     )
     clean_attrs = column_trans.fit_transform(attributes)
+
     X_train, X_test, y_train, y_test = train_test_split(clean_attrs, target, stratify=target, test_size=0.3,
                                                         random_state=RANDOM_STATE)
-    scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train = scaler.transform(X_train)
-    X_test = scaler.transform(X_test)
+    is_smote = smote[0]
+    if is_smote:
+        print("Smote resampling initiated, Counter before: "+str(Counter(y_train)))
+        imbPipeline = get_smote_pipeline(smote)
+        X_train, y_train = imbPipeline.fit_resample(X_train, y_train)
+        print("Smote resampling complete, Counter after: "+str(Counter(y_train)))
+
     return X_train, y_train, X_test, y_test
 
-def munge_ford_data(trainx, trainy, testx, testy):
-    """ This function is used to pre-processed the Ford data set in order
-    to reduce the feature space and improve run time.
-    """
+def drop_correlated_columns(X_train, X_test):
+    # correlation = X_train.corr().abs()
+    # get_graph = c.unstack()
+    # final = get_graph.order(kind="quicksort", na_last=False)[::-1]
 
-    # Search for highly correlated things
-    # c = trainx.corr().abs()
-    # s = c.unstack()
-    # so = s.order(kind="quicksort", na_last=False)[::-1]
+    X_test = X_test.drop(['P4', 'V6', 'V10', 'E9', 'E2'], axis=1)
+    X_train = X_train.drop(['P4', 'V6', 'V10', 'E9', 'E2'], axis=1)
+    return X_train, X_test
 
-    # Drop P4, V6, V10, E9, E2, E9, V8 b/c they are highly correlated (>0.5)
-    trainx = trainx.drop(['P4', 'V6', 'V10', 'E9', 'E2'], axis=1)
-    testx = testx.drop(['P4', 'V6', 'V10', 'E9', 'E2'], axis=1)
+def scale_variant_columns(X_train, X_test):
 
-    # Drop P8, V7, V9 because their values are all 0
-    trainx = trainx.drop(['P8', 'V7', 'V9'],axis=1)
-    testx = testx.drop(['P8', 'V7', 'V9'], axis=1)
+    X_train.loc[X_train['E7'] > 4, 'E7'] = 4
+    X_train.loc[X_train['E8'] > 4, 'E8'] = 4
+    X_test.loc[X_test['E7'] > 4, 'E7'] = 4
+    X_test.loc[X_test['E8'] > 4, 'E8'] = 4
+    return X_train, X_test
 
-    # Lump together all buckets greater than 4 in E7 and E8
-    trainx.loc[trainx.E7 > 4, 'E7'] = 4
-    trainx.loc[trainx.E8 > 4, 'E8'] = 4
-    testx.loc[testx.E7 > 4, 'E7'] = 4
-    testx.loc[testx.E8 > 4, 'E8'] = 4
-
-    # Check columns for NaN , i.e. missing values
-    # has_nan = pandas.isnull(trainx).any(0).nonzero()
-
-    # Scale zero mean and unit variance for numerical/continous data
-    # Exclude categorical variables E3,E7, E8, V5
-    numerical_features = [x for x in trainx.columns if x not in
-                          ['E3', 'E7', 'E8', 'V5']]
+def scale_continuous_data(X_train, X_test):
+    categorical = ['E3', 'E7', 'E8', 'V5']
+    numerical = [x for x in X_train.columns if x not in categorical]
     scaler = preprocessing.StandardScaler().fit(
-        trainx.loc[:, numerical_features])
-    trainx.loc[:, numerical_features] = scaler.transform(
-        trainx.loc[:, numerical_features])
-    testx.loc[:, numerical_features] = scaler.transform(
-        testx.loc[:, numerical_features])
+        X_train.loc[:, numerical])
+    X_train.loc[:, numerical] = scaler.transform(
+        X_train.loc[:, numerical])
+    X_test.loc[:, numerical] = scaler.transform(
+        X_test.loc[:, numerical])
+    return X_train, X_test
 
-    # # Optionally sub-sample the train data
-    # rows = random.sample(trainx.index, 600000)
-    # trainx = trainx.iloc[rows, ]
-    # trainy = trainy.iloc[rows, ]
-    #
-    # # Optionally sub-sample test data
-    # rows = random.sample(testx.index, 120000)
-    # testx = testx.iloc[rows, ]
-    # testy = testy.iloc[rows, ]
+def preprocess_ford_data(X_train, X_test):
+    X_train, X_test = drop_correlated_columns(X_train, X_test)
+    X_train, X_test = scale_variant_columns(X_train, X_test)
+    X_train, X_test = scale_continuous_data(X_train, X_test)
 
-    return trainx, trainy, testx, testy
+    return X_train, X_test
 
 def get_data_ford(dataset_sample, num_features):
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
@@ -135,17 +134,13 @@ def get_data_ford(dataset_sample, num_features):
         X_train = df_train[['P6', 'E9', 'V10']]
         X_test = df_test[['P6', 'E9', 'V10']]
     elif num_features == 'munge':
-        print("Munging ford data")
-        X_train, y_train, X_test, y_test = munge_ford_data(df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1), y_train,df_test.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1),y_test)
+        print("Preprocessing ford data")
+        X_train, X_test = preprocess_ford_data(df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1), df_test.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1))
 
     if dataset_sample != 0:
         print("Sampling the training set at: "+str(dataset_sample))
         X_train, X_test_new, y_train, y_test_new = train_test_split(X_train, y_train, train_size=dataset_sample,
                                                             random_state=RANDOM_STATE)
-    # scaler = StandardScaler()
-    # scaler.fit(X_train)
-    # X_train = scaler.transform(X_train)
-    # X_test = scaler.transform(X_test)
     return X_train, y_train, X_test, y_test
 
 def plot_learning_curve(is_iterative, model,title,X_train,y_train,cv, filename,scoring):
@@ -231,10 +226,10 @@ def final_plots(run_type, clf, clf_type, cv, score, X_train, y_train, X_test, y_
 def initialize_a_param(clf, param, X_train, y_train, cv, clf_type, scoring, is_smote):
     param_name = list(param)[0]
     print("Initializing "+param_name+" with GridSearch")
-    if is_smote:
-        smote_param_name = "model__" + param_name
-        param[smote_param_name] = param.pop(param_name)
-        param_name = smote_param_name
+    # if is_smote:
+    #     smote_param_name = "model__" + param_name
+    #     param[smote_param_name] = param.pop(param_name)
+    #     param_name = smote_param_name
     clf = GridSearchCV(
         clf,
         param_grid=param,
@@ -252,27 +247,37 @@ def calc_testing(clf, X_train, y_train, X_test):
     y_pred = clf.predict(X_test)
     return y_pred
 
-def get_smote_pipeline(clf, smote):
+def get_smote_pipeline(smote):
     smote_sample = smote[1]
-    under_sample = smote[2]
     over = SMOTE(sampling_strategy=smote_sample, random_state=RANDOM_STATE)
-    under = RandomUnderSampler(sampling_strategy=under_sample, random_state=RANDOM_STATE)
-    steps = [('over', over), ('under', under), ('model', clf)]
+    steps = [('over', over)]
+    if len(smote) == 3:
+        under_sample = smote[2]
+        under = RandomUnderSampler(sampling_strategy=under_sample, random_state=RANDOM_STATE)
+        steps.append(('under', under))
+
     return imbalancePipeline(steps=steps)
 
 def discover_classifier(clf_type, kwargs, smote):
     is_smote = smote[0]
     if clf_type == 'decision_tree':
-        return get_smote_pipeline(dt.DecisionTreeClassifier(**kwargs), smote) if is_smote else dt.DecisionTreeClassifier(**kwargs)
+        #return get_smote_pipeline(dt.DecisionTreeClassifier(**kwargs), smote) if is_smote else
+        return dt.DecisionTreeClassifier(**kwargs)
     elif clf_type == 'ada_boost':
-        return get_smote_pipeline(AdaBoostClassifier(**kwargs), smote) if is_smote else AdaBoostClassifier(**kwargs)
+        #return get_smote_pipeline(AdaBoostClassifier(**kwargs), smote) if is_smote else \
+        #kwargs['base_estimator'] = dt.DecisionTreeClassifier(max_depth=3, criterion='gini')
+        return AdaBoostClassifier(**kwargs)
     elif clf_type == 'neural_network':
-        return get_smote_pipeline(MLPClassifier(**kwargs), smote) if is_smote else MLPClassifier(**kwargs)
+        #return get_smote_pipeline(MLPClassifier(**kwargs), smote) if is_smote else \
+        return MLPClassifier(**kwargs)
     elif clf_type == 'svc':
-        return get_smote_pipeline(SVC(**kwargs), smote) if is_smote else SVC(**kwargs)
+        #return get_smote_pipeline(SVC(**kwargs), smote) if is_smote else \
+        return SVC(**kwargs)
     elif clf_type == 'knn':
         if 'random_state' in kwargs: del kwargs['random_state']
-        return get_smote_pipeline(KNeighborsClassifier(**kwargs), smote) if is_smote else KNeighborsClassifier(**kwargs)
+        kwargs['n_jobs'] = -2
+        #return get_smote_pipeline(KNeighborsClassifier(**kwargs), smote) if is_smote else \
+        return KNeighborsClassifier(**kwargs)
     else:
         print("YOU HAVENT DEFINED "+clf_type+" IN discover_classifier")
 
@@ -357,6 +362,7 @@ def get_optimal_hyperparameters(param2, clf_type, smote, param1, run_type, scori
     print("Executing " + clf_type + ' with smote: ' + str(smote[0]))
     if param2 != None:
         clf = discover_classifier(clf_type, {}, smote)
+
         kwargs = validate_two_params(param1,param2,clf,run_type,clf_type,scoring,cv,X_train,y_train,X_test,y_test, smote)
     else:
         kwargs = validate_single_param(param1, param2, run_type,clf_type,scoring,cv,X_train,y_train,X_test,y_test, smote)
@@ -391,10 +397,12 @@ def run_nn(X_train, y_train, X_test, y_test, scoring, cv, smote, run_type, param
 
 def run_svc(X_train, y_train, X_test, y_test, scoring, cv, smote, run_type, param1, param2):
     clf_type = 'svc'
-    is_iterative = True
-    kwargs = get_optimal_hyperparameters(param2, clf_type, smote, param1, run_type, scoring, cv, X_train, y_train,
-                                         X_test, y_test)
-    clf = SVC(**kwargs)
+    is_iterative = False
+    #kwargs = get_optimal_hyperparameters(param2, clf_type, smote, param1, run_type, scoring, cv, X_train, y_train,
+    #                                     X_test, y_test)
+    #clf = SVC(**kwargs)
+    print("Calculating testing for SVC")
+    clf = SVC(kernel='linear', C=8)
     y_pred = calc_testing(clf, X_train, y_train, X_test)
     final_plots(run_type, clf, clf_type, cv, scoring, X_train, y_train, X_test, y_test, y_pred, smote, is_iterative)
 
@@ -410,10 +418,10 @@ def run_knn(X_train, y_train, X_test, y_test, scoring, cv, smote, run_type, para
 
 
 def run_shoppers(dataroot):
-    X_train, y_train, X_test, y_test = get_data_OSI()
+    smote = (True, 0.6)
+    X_train, y_train, X_test, y_test = get_data_OSI(smote)
     scoring = 'f1'
     cross_val_folds = 10
-    smote = (False,0.3,0.6)
     run_type = 'OSI'
     # run_dt(
     #     X_train,
@@ -425,22 +433,22 @@ def run_shoppers(dataroot):
     #     smote,
     #     run_type,
     #     {'max_depth': [1,2,3,4,5,6,7,8,9,10,15,20]},
-    #     None
+    #     {'criterion': ['gini', 'entropy']}
     # )
-    # run_nn(
-    #     X_train,
-    #     y_train,
-    #     X_test,
-    #     y_test,
-    #     scoring,
-    #     cross_val_folds,
-    #     smote,
-    #     run_type,
-    #     #(10,10,10) = 3 hidden layers with 10 units, (10,) = 1 hidden layer with 10 units
-    #     #had to play with the below numbers a lot
-    #     {'hidden_layer_sizes': [(100,), (150,), (200,), (100,100), (100,100,100)]},  # validation_curve
-    #     {'activation': ['logistic', 'tanh', 'relu', 'identity']},  # validation_curve
-    # )
+    run_nn(
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+        scoring,
+        cross_val_folds,
+        smote,
+        run_type,
+        #(10,10,10) = 3 hidden layers with 10 units, (10,) = 1 hidden layer with 10 units
+        #had to play with the below numbers a lot
+        {'hidden_layer_sizes': [(100,), (150,), (200,), (100,100), (100,200,400)]},  # validation_curve
+        {'activation': ['logistic', 'tanh', 'relu', 'identity']},  # validation_curve
+    )
     #Weak learner puts more weight on the examples its getting wrong (showing they're the 'harder' examples)
     # and as long as you're still getting better than chance error, it guarantees you'll get some of the harder examples right
     # run_ada(
@@ -453,7 +461,7 @@ def run_shoppers(dataroot):
     #     smote,
     #     run_type,
     #     {'n_estimators': [50, 100, 150, 200]},
-    #     {'learning_rate': [0.0001, 0.001, 0.01]}
+    #     {'learning_rate': [0.0001, 0.001, 0.01, 0.05]}
     # )
     # run_svc(
     #     X_train,
@@ -464,9 +472,9 @@ def run_shoppers(dataroot):
     #     cross_val_folds,
     #     smote,
     #     run_type,
-    #     {'C': [1,2,3,4,5,6,7,8,9,10]},  # validation_curve
-    #     #{'kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']},  # validation_curve
-    #     {'kernel': ['rbf', 'sigmoid']},  # validation_curve
+    #     {'C': [8]},  # validation_curve
+    #     {'kernel': ['linear']},  # validation_curve
+    #     #{'kernel': ['rbf', 'sigmoid']},  # validation_curve
     # )
     #preference bias
     #Locality: Near points are similar
@@ -485,9 +493,8 @@ def run_shoppers(dataroot):
     #     {'weights': ['uniform', 'distance']},  # validation_curve
     # )
 
-#TODO: See if the distribution of trues to falses is the same between training and testing
 def run_ford(dataroot):
-    training_sample = 0.3
+    training_sample = 0.0
     num_features = 'munge'
     X_train, y_train, X_test, y_test = get_data_ford(training_sample, num_features)
     scoring = 'accuracy'
@@ -530,7 +537,7 @@ def run_ford(dataroot):
     #     smote,
     #     run_type,
     #     {'n_estimators': [50, 100, 150, 200]},
-    #     {'learning_rate': [0.0001, 0.001, 0.01]}
+    #     {'learning_rate': [0.0001, 0.001, 0.01, 0.05]}
     # )
     # run_knn(
     #     X_train,
@@ -554,7 +561,7 @@ def run_ford(dataroot):
     #     smote,
     #     run_type,
     #     {'C': [1,2,3,4,5,6,7,8,9,10]},  # validation_curve
-    #     #{'kernel': ['linear', 'poly', 'rbf', 'sigmoid', 'precomputed']},  # validation_curve
+    #     #{'kernel': ['linear', 'poly', 'rbf', 'sigmoid']},  # validation_curve
     #     {'kernel': ['rbf', 'sigmoid']},  # validation_curve
     # )
 if __name__ == "__main__":
