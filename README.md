@@ -3,7 +3,7 @@
 ### This repo contains four assignments covering:
 ### 1. [Supervised Learning](#supervised-learning) 
 ### 2. [Unsupervised Learning](#unsupervised-learning) 
-### 3. Dimensionality Reduction,
+### 3. Dimensionality Reduction
 ### 4. Reinforcement Learning
 ***
 ## Supervised Learning
