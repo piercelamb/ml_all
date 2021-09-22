@@ -1,8 +1,8 @@
 # plamb's Machine Learning Assignments
 
 ### This repo contains four assignments covering:
-### 1. Supervised Learning, 
-### 2. Unsupervised Learning, 
+### 1. [Supervised Learning](#supervised-learning) 
+### 2. [Unsupervised Learning](#unsupervised-learning) 
 ### 3. Dimensionality Reduction,
 ### 4. Reinforcement Learning
 ***
