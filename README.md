@@ -1,12 +1,12 @@
-#plamb's Machine Learning Assignments
+# plamb's Machine Learning Assignments
 
-###This repo contains four assignments covering:
-###1. Supervised Learning, 
-###2. Unsupervised Learning, 
-###3. Dimensionality Reduction,
-###4. Reinforcement Learning
+### This repo contains four assignments covering:
+### 1. Supervised Learning, 
+### 2. Unsupervised Learning, 
+### 3. Dimensionality Reduction,
+### 4. Reinforcement Learning
 ***
-##Supervised Learning
+## Supervised Learning
 For this assignment, we chose two datasets at random that contained 
 classification problems. The goal was to optimally train five different supervised 
 learners on the datasets and test how they performed on the classification 
@@ -40,7 +40,7 @@ and some preprocessing that reduced the number of features from 32 to 22. Since 
 for one learner (SVM) I did it for all of them to make the comparison more consistent.
 
 
-##About the code:
+## About the code:
 Note that this was my first time ever writing Machine Learning code. `main.py`
 contains my very first (spaghetti) attempt where I learned a lot about sci-kit learn's
 APIs. `clean.py` contains attempt #2 which is much cleaner, but still could be improved.
@@ -74,7 +74,7 @@ that will reduce the number of features and reduce the size of the training set.
 See `get_data_ford` to get a sense of what these values can be and what they do.
 Recall that I ran all of my learners on 30% of the training set with some preprocessing.
 
-###- To run the code:
+### - To run the code:
 If you've cloned the repo, you'll need to download the datasets and put them in the
 `/supervised_learning/data` folder. The links above contain easy-to-find links to download.
 Note Online Shopping Intention has a single CSV while Ford Alertness was already split into
@@ -118,6 +118,6 @@ An example being:
 cd Documents/Personal/Academic/Georgia\ Tech/Classes/ML/hw/supervised_learning/
 
 ***
-##Unsupervised Learning
+## Unsupervised Learning
 
 
