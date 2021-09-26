@@ -5,8 +5,58 @@
 ### 2. [Unsupervised Learning](#unsupervised-learning) 
 ### 3. Dimensionality Reduction
 ### 4. Reinforcement Learning
+
+####A note on commit messages: 
+This is a single-committer homework repo with many pushes 
+happening very early in the morning or late at night.
+As such most of the messages are 'WIP' and do not reflect
+how I operate in a team environment.
 ***
 ## Supervised Learning
+
+### To run the code (for the impatient):
+
+You should read all the context below, but if you've cloned the repo, you'll need to download the datasets and put them in the
+`/supervised_learning/data` folder. The links above contain easy-to-find links to download.
+Note Online Shopping Intention has a single CSV while Ford Alertness was already split into
+Train/Test/Solution. All of these CSVs should be in `/data`
+
+I installed [miniconda](https://docs.conda.io/en/latest/miniconda.html) in order to create
+a unique environment for this runtime. I then created the below environment.yml file in /supervised_learning/:
+```yml
+name: cs7641
+dependencies:
+- python=3.9
+- numpy=1.20.3
+- matplotlib=3.4
+- pandas=1.3.1
+- scikit-learn=0.24.2
+- pip 
+- pip: 
+  - pprofile==2.0.2 
+  - jsons==0.8.8 
+  - imbalanced-learn==0.8.0
+```
+
+Create the environment using this command (from /supervised_learning/)
+
+`conda env create --file environment.yml`
+
+Activate the environment with:
+
+`conda activate cs7641`
+
+At this point I would open `clean.py` in your editor to see which learner(s) is/are going to run.
+To easily get there do a find for either `run_ford` or `run_shoppers`.
+Once you're happy with what's running execute the below:
+
+`path-to-conda-python clean.py shoppers-or-ford`
+
+An example being:
+
+`/Users/plamb/opt/miniconda3/envs/cs7641/bin/python clean.py ford`
+
+##About the assignment
 For this assignment, we chose two datasets at random that contained 
 classification problems. The goal was to optimally train five different supervised 
 learners on the datasets and test how they performed on the classification 
@@ -74,6 +124,16 @@ that will reduce the number of features and reduce the size of the training set.
 See `get_data_ford` to get a sense of what these values can be and what they do.
 Recall that I ran all of my learners on 30% of the training set with some preprocessing.
 
+The code could be readily improved by not being rigidly bounded to two-parameter optimization
+(e.g. it could loop over n parameters) and also by having a more readable-way of passing
+around so many function parameters (perhaps using **args or **kwargs).
+
+***
+## Unsupervised Learning
+
+###THIS PART IS A WIP
+cd Documents/Personal/Academic/Georgia\ Tech/Classes/ML/hw/unsupervised_learning/
+
 ### - To run the code:
 If you've cloned the repo, you'll need to download the datasets and put them in the
 `/supervised_learning/data` folder. The links above contain easy-to-find links to download.
@@ -83,7 +143,7 @@ Train/Test/Solution. All of these CSVs should be in `/data`
 I installed [miniconda](https://docs.conda.io/en/latest/miniconda.html) in order to create
 a unique environment for this runtime. I then created the below environment.yml file in /supervised_learning/:
 ```yml
-name: cs7641
+name: randomized_optimization
 dependencies:
 - python=3.9
 - numpy=1.20.3
@@ -93,8 +153,8 @@ dependencies:
 - pip 
 - pip: 
   - pprofile==2.0.2 
-  - jsons==0.8.8 
-  - imbalanced-learn==0.8.0
+  - jsons==0.8.8
+  - mlrose-hiive==2.2.3
 ```
 
 Create the environment using this command (from /supervised_learning/)
@@ -103,21 +163,14 @@ Create the environment using this command (from /supervised_learning/)
 
 Activate the environment with:
 
-`conda activate cs7641`
+`conda activate randomized_optimization`
 
 At this point I would open `clean.py` in your editor to see which learner(s) is/are going to run.
 To easily get there do a find for either `run_ford` or `run_shoppers`.
 Once you're happy with what's running execute the below:
 
-`path-to-conda-python clean.py shoppers-or-ford`
+`path-to-conda-python main.py`
 
 An example being:
 
-`/Users/plamb/opt/miniconda3/envs/cs7641/bin/python clean.py ford`
-
-cd Documents/Personal/Academic/Georgia\ Tech/Classes/ML/hw/supervised_learning/
-
-***
-## Unsupervised Learning
-
-
+`/Users/plamb/opt/miniconda3/envs/randomized_optimization/bin/python main.py`
