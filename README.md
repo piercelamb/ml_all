@@ -6,7 +6,7 @@
 ### 3. Dimensionality Reduction
 ### 4. Reinforcement Learning
 
-####A note on commit messages: 
+#### A note on commit messages: 
 This is a single-committer homework repo with many pushes 
 happening very early in the morning or late at night.
 As such most of the messages are 'WIP' and do not reflect
