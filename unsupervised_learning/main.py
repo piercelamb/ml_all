@@ -1,6 +1,7 @@
 import sys
 import mlrose_hiive as rose
-from mlrose_hiive import NNGSRunner
+from mlrose_hiive import simulated_annealing as sa, random_hill_climb as rhc, genetic_alg as ga, mimic
+from mlrose_hiive import RHCRunner, SARunner, GARunner, NNGSRunner, ExpDecay, NNClassifier
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -15,6 +16,7 @@ from collections import Counter
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.compose import make_column_transformer
+import sklearn.metrics as skmt
 
 RANDOM_STATE = 1337
 
@@ -266,6 +268,60 @@ def get_data_OSI(smote):
 
     return X_train, y_train, X_test, y_test
 
+def get_the_runner(alg, X_train, y_train, X_test, y_test):
+    default_params = {
+        'x_train':X_train,
+        'y_train':y_train,
+        'x_test':X_test,
+        'y_test':y_test,
+        'experiment_name':alg,
+        'iteration_list':[1, 10, 50, 100, 250, 500, 1000],
+        'hidden_layer_sizes':[[2]],
+        'bias':True,
+        'early_stopping':True,
+        'clip_max':5,
+        'max_attempts':500,
+        'n_jobs':5,
+        'seed':RANDOM_STATE,
+        'output_directory':None
+    }
+    if alg == 'random_hill_climb':
+        custom_params = {
+            'restarts': [3],
+            'algorithm': rose.algorithms.rhc.random_hill_climb,
+        }
+    elif alg == 'simulated_annealing':
+        custom_params = {
+            #"temperature_list": [0.01],
+            #'decay_list:': [ExpDecay],
+            'algorithm': rose.algorithms.sa.simulated_annealing,
+        }
+    elif alg == 'genetic_alg':
+        custom_params = {
+            #"population_sizes": [25],
+            #"mutation_rates": [0.001],
+            'algorithm': rose.algorithms.ga.genetic_alg,
+        }
+    else:
+        #gradient descent
+        custom_params = {
+            'algorithm': rose.algorithms.gd.gradient_descent,
+        }
+    grid_search_parameters = {
+        'max_iters': [1000],  # nn params
+        'learning_rate': [1e-2],  # nn params
+        'activation': [rose.sigmoid],  # nn params
+    }
+    final_params ={
+        **default_params,
+        **custom_params,
+        'grid_search_parameters': grid_search_parameters,
+        'grid_search_scorer_method': skmt.f1_score
+    }
+
+    return NNGSRunner(**final_params)
+
+
 def perform_nn(dataroot):
     # training_sample = 0.3
     # num_features = 'munge'
@@ -283,77 +339,24 @@ def perform_nn(dataroot):
 
     #assignment1 FAD params: 1 layer, 150 neurons, tanh as activation
     #assignment1 OSI params: 2 layers, 100 neurons, sigmoid
-    algs = ['random_hill_climb', 'simulated_annealing','genetic_alg']
-    # ensure defaults are in grid search
-    grid_search_parameters = {
-        'max_iters': [1000],  # nn params
-        'learning_rate': [1e-2],  # nn params
-        'activation': [rose.relu],  # nn params
-        'restarts': [1],  # rhc params
-    }
+    algs = ['random_hill_climb', 'simulated_annealing','genetic_alg', 'gradient_descent']
 
-    nnr = NNGSRunner(
-        x_train=X_train,
-        y_train=y_train,
-        x_test=X_test,
-        y_test=y_test,
-        experiment_name='nn_test_rhc',
-        algorithm=rose.algorithms.rhc.random_hill_climb,
-        grid_search_parameters=grid_search_parameters,
-        iteration_list=[1, 10, 50, 100, 250, 500, 1000],
-        hidden_layer_sizes=[[2]],
-        bias=True,
-        early_stopping=True,
-        clip_max=5,
-        max_attempts=500,
-        n_jobs=5,
-        seed=RANDOM_STATE,
-        output_directory=None
-    )
+    fitness_results = {}
+    time_results = {}
+    acc_results = {}
+    curves = {}
+    for alg in algs:
+        print("\n-------------------------\n")
+        print("Executing NN with "+alg)
+        runner = get_the_runner(alg, X_train, y_train, X_test, y_test)
 
-    run_stats_df, curves_df, cv_results_df, grid_search_cv = nnr.run()
-    # for alg in algs:
-    #     print("Running NN using : "+alg)
-    #     max_iterations = [100, 200, 300, 400, 500, 1000]
-    #
-    #     nn_model1 = rose.NeuralNetwork(
-    #         hidden_nodes=[100, 100],
-    #         activation='sigmoid',
-    #         algorithm=alg,
-    #         max_iters=1000,
-    #         bias=True,
-    #         is_classifier=True,
-    #         learning_rate=0.001,
-    #         early_stopping=True,
-    #         clip_max=5,
-    #         max_attempts=100,
-    #         random_state=RANDOM_STATE
-    #     )
-    #     print("Fitting X_train")
-    #     nn_model1.fit(X_train, y_train)
-    #     print("Predicting X_train")
-    #     y_train_pred = nn_model1.predict(X_train)
-    #     y_train_f1= f1_score(y_train, y_train_pred)
-    #     print("y_train accuracy: "+str(y_train_f1))
-    #     print("Predicting X_test")
-    #     y_test_pred = nn_model1.predict(X_test)
-    #     y_test_f1 = f1_score(y_test, y_test_pred)
-    #     print("y_test accuracy: "+str(y_test_f1))
-    #     exit(1)
-    # run_nn(
-    #     X_train,
-    #     y_train,
-    #     X_test,
-    #     y_test,
-    #     scoring,
-    #     cross_val_folds,
-    #     smote,
-    #     run_type,
-    #     #(10,10,10) = 3 hidden layers with 10 units, (10,) = 1 hidden layer with 10 units
-    #     #had to play with the below numbers a lot
-    #     {'hidden_layer_sizes': [(100,), (150,), (200,), (100,100), (100,100,100)]},  # validation_curve
-    #     {'activation': ['logistic', 'tanh', 'relu', 'identity']},  # validation_curve
-    # )
+        start_time = time.time()
+        run_stats, curves, cv_results, grid_search_cv = runner.run()
+        total_time = time.time() - start_time
+        print(alg+" complete, running time: "+str(total_time))
+
+        exit(1)
+
 
 
 if __name__ == "__main__":
