@@ -1,6 +1,6 @@
 import sys
 import mlrose_hiive as rose
-#from mlrose_hiive import SKMLPRunner, SARunner, GARunner, NNGSRunner
+from mlrose_hiive import NNGSRunner
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -285,44 +285,33 @@ def perform_nn(dataroot):
     #assignment1 OSI params: 2 layers, 100 neurons, sigmoid
     algs = ['random_hill_climb', 'simulated_annealing','genetic_alg']
     # ensure defaults are in grid search
-    default_grid_search_parameters = {
-        'max_iters': [5000],
-        'learning_rate_init': [0.1, 0.2, 0.4, 0.8],
-        'hidden_layer_sizes': [[4, 4, 4]],
-        'activation': [rose.neural.activation.relu],
+    grid_search_parameters = {
+        'max_iters': [1000],  # nn params
+        'learning_rate': [1e-2],  # nn params
+        'activation': [rose.relu],  # nn params
+        'restarts': [1],  # rhc params
     }
 
-    default_parameters = {
-        'seed': RANDOM_STATE,
-        'iteration_list': 2 ** np.arange(13),
-        'max_attempts': 5000,
-        'n_jobs': 5,
-        'cv': 5,
-    }
+    nnr = NNGSRunner(
+        x_train=X_train,
+        y_train=y_train,
+        x_test=X_test,
+        y_test=y_test,
+        experiment_name='nn_test_rhc',
+        algorithm=rose.algorithms.rhc.random_hill_climb,
+        grid_search_parameters=grid_search_parameters,
+        iteration_list=[1, 10, 50, 100, 250, 500, 1000],
+        hidden_layer_sizes=[[2]],
+        bias=True,
+        early_stopping=True,
+        clip_max=5,
+        max_attempts=500,
+        n_jobs=5,
+        seed=RANDOM_STATE,
+        output_directory=None
+    )
 
-    skmlp_grid_search_parameters = {
-        **default_grid_search_parameters,
-        'max_iters': [5000],
-        'learning_rate_init': [0.0001],
-        'activation': [rose.neural.activation.sigmoid],
-    }
-
-    skmlp_default_parameters = {
-        **default_parameters,
-        'early_stopping': True,
-        'tol': 1e-05,
-        'alpha': 0.001,
-        'solver': 'lbfgs',
-    }
-
-    cx_skr = SKMLPRunner(x_train=X_train, y_train=y_train,
-                         x_test=X_test, y_test=y_test,
-                         experiment_name='skmlp_clean',
-                         grid_search_parameters=skmlp_grid_search_parameters,
-                         **skmlp_default_parameters)
-
-    run_stats_df, curves_df, cv_results_df, cx_sr = cx_skr.run()
-    print(cx_sr.best_params_)
+    run_stats_df, curves_df, cv_results_df, grid_search_cv = nnr.run()
     # for alg in algs:
     #     print("Running NN using : "+alg)
     #     max_iterations = [100, 200, 300, 400, 500, 1000]
