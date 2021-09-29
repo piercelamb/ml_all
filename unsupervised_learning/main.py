@@ -269,7 +269,7 @@ def get_data_OSI(smote):
 
     return X_train, y_train, X_test, y_test
 
-def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters):
+def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters, max_iters):
     default_params = {
         'x_train':X_train,
         'y_train':y_train,
@@ -277,7 +277,7 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters
         'y_test':y_test,
         'experiment_name':alg,
         #'iteration_list':[1, 10, 50, 100, 250, 500, 1000, 10000],
-        'iteration_list': [10000],
+        'iteration_list': [max_iters],
         'bias':True,
         'early_stopping':True,
         'clip_max':5,
@@ -293,38 +293,38 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters
         }
     elif alg == 'simulated_annealing':
         custom_params = {
-            #"temperature_list": [0.01],
-            #'decay_list:': [ExpDecay],
+            'schedule': [ExpDecay(1),ExpDecay(10),ExpDecay(25)],
             'algorithm': rose.algorithms.sa.simulated_annealing,
         }
     elif alg == 'genetic_alg':
         custom_params = {
-            #"population_sizes": [25],
-            #"mutation_rates": [0.001],
+            "pop_size": [5, 10, 25],
+            "mutation_prob": [0.001, 0.01, 1],
             'algorithm': rose.algorithms.ga.genetic_alg,
         }
     else:
         #gradient descent
         custom_params = {
+            "learning_rate_init": [0.0002],
             'algorithm': rose.algorithms.gd.gradient_descent,
         }
     final_params ={
         **default_params,
         **custom_params,
         'grid_search_parameters': grid_search_parameters,
-        'grid_search_scorer_method': partial(skmt.f1_score, average="binary")
-        #TODO: test skmt.f1_score(average='binary') and the partial above
+        #'grid_search_scorer_method': partial(skmt.f1_score, average="binary")
     }
 
     return NNGSRunner(**final_params)
 
 def get_loss_curve(alg, curves, min_row):
-    best_fitness_restart = min_row.iloc[0]['current_restart']
-    curves = curves[curves.current_restart == best_fitness_restart]
-    curves.reset_index(inplace=True, drop=True)
-    curves.plot(title="RHC NN Fitness over Iterations", xlabel="Iterations", ylabel="Fitness", x="Iteration",
+    if alg == 'random_hill_climb':
+        best_fitness_restart = min_row.iloc[0]['current_restart']
+        curves = curves[curves.current_restart == best_fitness_restart]
+        curves.reset_index(inplace=True, drop=True)
+    curves.plot(title=alg+" NN Fitness over Iterations", xlabel="Iterations", ylabel="Fitness", x="Iteration",
                 y="Fitness")
-    plt.savefig("rhc-nn-fitness3.png")
+    plt.savefig(alg+"_nn_fitness.png")
     plt.clf()
 
     return curves['Fitness']
@@ -355,23 +355,29 @@ def perform_nn(dataroot):
 
     #assignment1 FAD params: 1 layer, 150 neurons, tanh as activation
     #assignment1 OSI params: 2 layers, 100 neurons, sigmoid
-    algs = ['random_hill_climb', 'gradient_descent', 'simulated_annealing','genetic_alg']
+    algs = [
+        'gradient_descent',
+        'random_hill_climb',
+        'simulated_annealing',
+        'genetic_alg'
+    ]
 
     all_fitness = {}
     all_time = {}
-    acc_results = {}
+    all_scoring = {}
     all_curves = {}
     for alg in algs:
         print("\n-------------------------\n")
         print("Executing NN with "+alg)
+        max_iters = 1000
         grid_search_parameters = {
-            'hidden_layer_sizes':[[100, 100]],
-            'max_iters': [10000],
-            'learning_rate': [0.0001, 0.001, 0.0025, 0.005, 0.01],
+            'hidden_layer_sizes':[[100], [100, 200]],
+            'max_iters': [max_iters],
+            'learning_rate': [0.00001, 0.0001, 0.001, 0.01],
             'activation': [rose.sigmoid],
         }
 
-        runner = get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters)
+        runner = get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters, max_iters)
 
         start_time = time.time()
         run_stats, curves, cv_results, grid_search_cv = runner.run()
@@ -387,7 +393,13 @@ def perform_nn(dataroot):
         all_curves[alg] = loss_curve
         all_fitness[alg] = best_fitness
         all_time[alg] = total_time
+        all_scoring[alg] = grid_search_cv.best_score_
+        print(alg + " best score " + str(grid_search_cv.best_score_))
         exit(1)
+
+    pd.DataFrame(all_curves).plot(title="Neural Network Convergence", ylabel="Fitness", xlabel="Iterations")
+    plt.savefig("neural_network_convergence.png")
+    plt.clf()
 
 
 
