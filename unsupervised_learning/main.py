@@ -17,6 +17,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.compose import make_column_transformer
 import sklearn.metrics as skmt
+from functools import partial
 
 RANDOM_STATE = 1337
 
@@ -243,7 +244,7 @@ def get_data_ford(dataset_sample, num_features):
 def get_data_OSI(smote):
     datapath = dataroot + 'online_shoppers_intention.csv'
     df = pd.read_csv(datapath)
-    target = df['Revenue']
+    target = df['Revenue'] = df['Revenue'].astype(int)
     attributes = df.drop('Revenue', axis=1, )
     string_columns = ['Month', 'VisitorType', 'Weekend']
     numerical_columns = ['Administrative', 'Administrative_Duration', 'Informational',
@@ -268,26 +269,26 @@ def get_data_OSI(smote):
 
     return X_train, y_train, X_test, y_test
 
-def get_the_runner(alg, X_train, y_train, X_test, y_test):
+def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters):
     default_params = {
         'x_train':X_train,
         'y_train':y_train,
         'x_test':X_test,
         'y_test':y_test,
         'experiment_name':alg,
-        'iteration_list':[1, 10, 50, 100, 250, 500, 1000],
-        'hidden_layer_sizes':[[2]],
+        #'iteration_list':[1, 10, 50, 100, 250, 500, 1000, 10000],
+        'iteration_list': [10000],
         'bias':True,
         'early_stopping':True,
         'clip_max':5,
         'max_attempts':500,
-        'n_jobs':5,
+        'n_jobs':-2,
         'seed':RANDOM_STATE,
         'output_directory':None
     }
     if alg == 'random_hill_climb':
         custom_params = {
-            'restarts': [3],
+            'restarts': [3, 5],
             'algorithm': rose.algorithms.rhc.random_hill_climb,
         }
     elif alg == 'simulated_annealing':
@@ -307,20 +308,35 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test):
         custom_params = {
             'algorithm': rose.algorithms.gd.gradient_descent,
         }
-    grid_search_parameters = {
-        'max_iters': [1000],  # nn params
-        'learning_rate': [1e-2],  # nn params
-        'activation': [rose.sigmoid],  # nn params
-    }
     final_params ={
         **default_params,
         **custom_params,
         'grid_search_parameters': grid_search_parameters,
-        'grid_search_scorer_method': skmt.f1_score
+        'grid_search_scorer_method': partial(skmt.f1_score, average="binary")
+        #TODO: test skmt.f1_score(average='binary') and the partial above
     }
 
     return NNGSRunner(**final_params)
 
+def get_loss_curve(alg, curves, min_row):
+    best_fitness_restart = min_row.iloc[0]['current_restart']
+    curves = curves[curves.current_restart == best_fitness_restart]
+    curves.reset_index(inplace=True, drop=True)
+    curves.plot(title="RHC NN Fitness over Iterations", xlabel="Iterations", ylabel="Fitness", x="Iteration",
+                y="Fitness")
+    plt.savefig("rhc-nn-fitness3.png")
+    plt.clf()
+
+    return curves['Fitness']
+
+def get_analysis(alg, run_stats, curves):
+    run_stats = run_stats[run_stats['Iteration'] != 0]
+    min_row = run_stats[run_stats.Fitness == run_stats.Fitness.min()]
+    best_fitness = min_row['Fitness']
+    print(alg + " best fitness: " + str(best_fitness))
+    loss_curve = get_loss_curve(alg, curves, min_row)
+
+    return best_fitness, loss_curve
 
 def perform_nn(dataroot):
     # training_sample = 0.3
@@ -339,23 +355,40 @@ def perform_nn(dataroot):
 
     #assignment1 FAD params: 1 layer, 150 neurons, tanh as activation
     #assignment1 OSI params: 2 layers, 100 neurons, sigmoid
-    algs = ['random_hill_climb', 'simulated_annealing','genetic_alg', 'gradient_descent']
+    algs = ['random_hill_climb', 'gradient_descent', 'simulated_annealing','genetic_alg']
 
-    fitness_results = {}
-    time_results = {}
+    all_fitness = {}
+    all_time = {}
     acc_results = {}
-    curves = {}
+    all_curves = {}
     for alg in algs:
         print("\n-------------------------\n")
         print("Executing NN with "+alg)
-        runner = get_the_runner(alg, X_train, y_train, X_test, y_test)
+        grid_search_parameters = {
+            'hidden_layer_sizes':[[100, 100]],
+            'max_iters': [10000],
+            'learning_rate': [0.0001, 0.001, 0.0025, 0.005, 0.01],
+            'activation': [rose.sigmoid],
+        }
+
+        runner = get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters)
 
         start_time = time.time()
         run_stats, curves, cv_results, grid_search_cv = runner.run()
         total_time = time.time() - start_time
         print(alg+" complete, running time: "+str(total_time))
-
+        pd.set_option('display.max_columns', None)
+        pd.set_option('display.max_rows', None)
+        print(cv_results)
+        print(grid_search_cv)
+        print(grid_search_cv.best_score_)
+        print(grid_search_cv.best_params_)
+        best_fitness, loss_curve = get_analysis(alg, run_stats, curves)
+        all_curves[alg] = loss_curve
+        all_fitness[alg] = best_fitness
+        all_time[alg] = total_time
         exit(1)
+
 
 
 
