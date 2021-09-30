@@ -11,7 +11,9 @@ import time
 import random
 from sklearn.model_selection import train_test_split
 from sklearn import preprocessing
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
+from sklearn.metrics import plot_confusion_matrix
+from sklearn.model_selection import learning_curve
 from collections import Counter
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import MinMaxScaler
@@ -269,6 +271,50 @@ def get_data_OSI(smote):
 
     return X_train, y_train, X_test, y_test
 
+def plot_learning_curve(model,title,X_train,y_train,cv, filename,scoring):
+    plt.figure()
+    plt.title(title)
+    plt.xlabel("Num Samples")
+    plt.ylabel(scoring)
+    step=np.linspace(1/cv,1.0,cv)
+    train_sizes,train_scores,test_scores = learning_curve(model,X_train,y_train,cv=cv,train_sizes=step, scoring=scoring, n_jobs=-1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    plt.grid()
+    plt.fill_between(train_sizes, test_scores_mean - test_scores_std, test_scores_mean + test_scores_std, alpha=0.1,
+                     color='red')
+    plt.fill_between(train_sizes,train_scores_mean-train_scores_std,train_scores_mean+train_scores_std,alpha=0.1,color='purple')
+    plt.plot(train_sizes,test_scores_mean,'o-',color='red',label="Cross-validation Score")
+    plt.plot(train_sizes,train_scores_mean,'o-',color='purple',label="Training Score")
+    plt.legend()
+    plt.savefig(filename)
+    plt.clf()
+
+def get_confusion_matrix(optimal_clf, X_test, y_test, title, filename):
+    confusion_matrix = plot_confusion_matrix(
+        optimal_clf,
+        X_test,
+        y_test,
+        cmap=plt.cm.Blues,
+        normalize='true'
+    )
+    confusion_matrix.ax_.set_title(title)
+    plt.savefig(filename)
+    plt.clf()
+
+def final_plots(run_type, clf, clf_type, cv, score, X_train, y_train, X_test, y_test, y_pred, smote):
+    smote_text = "SMOTE" if smote[0] else 'reg'
+    print(clf_type + " on scoring method " + score + " Balanced Accuracy score: " + str(balanced_accuracy_score(y_test, y_pred)))
+    print(clf_type + " on scoring method " + score + " f1 score: " + str(f1_score(y_test, y_pred)))
+    get_confusion_matrix(clf, X_test, y_test, run_type + ' ' + smote_text + ' Confusion Matrix (' + clf_type + ')',
+                         run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_confusion_matrix.png')
+    plot_learning_curve(clf, run_type + ' ' + smote_text + ' Learning Curve (' + clf_type + ')', X_train,
+                        y_train, cv=cv, scoring=score,
+                        filename=run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_Learning_Curve.png')
+
+
 def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters, max_iters):
     default_params = {
         'x_train':X_train,
@@ -276,8 +322,8 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters
         'x_test':X_test,
         'y_test':y_test,
         'experiment_name':alg,
-        #'iteration_list':[1, 10, 50, 100, 250, 500, 1000, 10000],
-        'iteration_list': [max_iters],
+        'iteration_list':[1, 10, 50, 100, 150, 200],
+        #'iteration_list': [max_iters],
         'bias':True,
         'early_stopping':True,
         'clip_max':5,
@@ -339,25 +385,25 @@ def get_analysis(alg, run_stats, curves):
     return best_fitness, loss_curve
 
 def perform_nn(dataroot):
-    # training_sample = 0.3
-    # num_features = 'munge'
-    # X_train, y_train, X_test, y_test = get_data_ford(training_sample, num_features)
-    # scoring = 'accuracy'
-    # cross_val_folds = 10
-    # smote = (False, None, None)
-    # run_type = 'FAD'
+    training_sample = 0.1
+    num_features = 'munge'
+    X_train, y_train, X_test, y_test = get_data_ford(training_sample, num_features)
+    scoring = 'balanced_accuracy'
+    cross_val_folds = 5
+    smote = (False, None, None)
+    run_type = 'FAD'
 
-    smote = (True, 0.6)
-    X_train, y_train, X_test, y_test = get_data_OSI(smote)
-    scoring = 'f1'
-    cross_val_folds = 10
-    run_type = 'OSI'
+    # smote = (True, 0.6)
+    # X_train, y_train, X_test, y_test = get_data_OSI(smote)
+    # scoring = 'f1'
+    # cross_val_folds = 10
+    # run_type = 'OSI'
 
     #assignment1 FAD params: 1 layer, 150 neurons, tanh as activation
     #assignment1 OSI params: 2 layers, 100 neurons, sigmoid
     algs = [
-        'gradient_descent',
         'random_hill_climb',
+        'gradient_descent',
         'simulated_annealing',
         'genetic_alg'
     ]
@@ -369,11 +415,12 @@ def perform_nn(dataroot):
     for alg in algs:
         print("\n-------------------------\n")
         print("Executing NN with "+alg)
-        max_iters = 1000
+        max_iters = 200
         grid_search_parameters = {
-            'hidden_layer_sizes':[[100], [100, 200]],
+            'hidden_layer_sizes':[[100]],
             'max_iters': [max_iters],
-            'learning_rate': [0.00001, 0.0001, 0.001, 0.01],
+            #'learning_rate': [0.00001, 0.0001, 0.001, 0.01],
+            'learning_rate': [0.0001],
             'activation': [rose.sigmoid],
         }
 
@@ -383,23 +430,27 @@ def perform_nn(dataroot):
         run_stats, curves, cv_results, grid_search_cv = runner.run()
         total_time = time.time() - start_time
         print(alg+" complete, running time: "+str(total_time))
-        pd.set_option('display.max_columns', None)
-        pd.set_option('display.max_rows', None)
-        print(cv_results)
-        print(grid_search_cv)
-        print(grid_search_cv.best_score_)
-        print(grid_search_cv.best_params_)
+        #TODO: Function evals column name=FEvals?
         best_fitness, loss_curve = get_analysis(alg, run_stats, curves)
         all_curves[alg] = loss_curve
         all_fitness[alg] = best_fitness
         all_time[alg] = total_time
         all_scoring[alg] = grid_search_cv.best_score_
-        print(alg + " best score " + str(grid_search_cv.best_score_))
-        exit(1)
+        best_estimator = grid_search_cv.best_estimator_
+        y_pred = best_estimator.predict(X_test)
+        print(alg + " best CV score " + str(grid_search_cv.best_score_))
+        final_plots(run_type,best_estimator,alg, cross_val_folds,scoring,X_train,y_train,X_test,y_test,y_pred,smote)
+
 
     pd.DataFrame(all_curves).plot(title="Neural Network Convergence", ylabel="Fitness", xlabel="Iterations")
     plt.savefig("neural_network_convergence.png")
     plt.clf()
+
+    total_results = pd.DataFrame([all_scoring, all_time, all_fitness])
+    html = total_results.to_html(index=True)
+    with open("neural_network_results.html", 'w') as fp:
+        fp.write(html)
+
 
 
 
