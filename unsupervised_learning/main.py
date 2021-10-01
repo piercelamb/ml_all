@@ -308,8 +308,8 @@ def final_plots(run_type, clf, clf_type, cv, score, X_train, y_train, X_test, y_
     smote_text = "SMOTE" if smote[0] else 'reg'
     print(clf_type + " on scoring method " + score + " Balanced Accuracy score: " + str(balanced_accuracy_score(y_test, y_pred)))
     print(clf_type + " on scoring method " + score + " f1 score: " + str(f1_score(y_test, y_pred)))
-    get_confusion_matrix(clf, X_test, y_test, run_type + ' ' + smote_text + ' Confusion Matrix (' + clf_type + ')',
-                         run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_confusion_matrix.png')
+    # get_confusion_matrix(clf, X_test, y_test, run_type + ' ' + smote_text + ' Confusion Matrix (' + clf_type + ')',
+    #                      run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_confusion_matrix.png')
     plot_learning_curve(clf, run_type + ' ' + smote_text + ' Learning Curve (' + clf_type + ')', X_train,
                         y_train, cv=cv, scoring=score,
                         filename=run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_Learning_Curve.png')
@@ -323,6 +323,7 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters
         'y_test':y_test,
         'experiment_name':alg,
         'iteration_list':[1, 10, 50, 100, 150, 200],
+        "learning_rate_init": [0.0002],
         #'iteration_list': [max_iters],
         'bias':True,
         'early_stopping':True,
@@ -334,7 +335,7 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters
     }
     if alg == 'random_hill_climb':
         custom_params = {
-            'restarts': [3, 5],
+            'restarts': [3, 5, 10],
             'algorithm': rose.algorithms.rhc.random_hill_climb,
         }
     elif alg == 'simulated_annealing':
@@ -351,7 +352,6 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters
     else:
         #gradient descent
         custom_params = {
-            "learning_rate_init": [0.0002],
             'algorithm': rose.algorithms.gd.gradient_descent,
         }
     final_params ={
@@ -363,15 +363,25 @@ def get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters
 
     return NNGSRunner(**final_params)
 
-def get_loss_curve(alg, curves, min_row):
+def get_loss_curves(alg, curves, min_row):
     if alg == 'random_hill_climb':
         best_fitness_restart = min_row.iloc[0]['current_restart']
         curves = curves[curves.current_restart == best_fitness_restart]
         curves.reset_index(inplace=True, drop=True)
+    if alg == 'simulated_annealing':
+        best_schedule = min_row.iloc[0]['schedule']
+        curves = curves[curves.schedule == best_schedule]
+        curves.reset_index(inplace=True, drop=True)
     curves.plot(title=alg+" NN Fitness over Iterations", xlabel="Iterations", ylabel="Fitness", x="Iteration",
                 y="Fitness")
-    plt.savefig(alg+"_nn_fitness.png")
+    plt.savefig(alg + "_nn_iterations.png")
     plt.clf()
+    if 'FEvals' in curves:
+        curves.plot(title=alg+" NN Fitness over Function Evals", xlabel="Function Evals", ylabel="Fitness", x="FEvals",
+                    y="Fitness")
+        plt.savefig(alg + "_nn_fevals.png")
+        plt.clf()
+        #return curves[['Fitness', 'FEvals']]
 
     return curves['Fitness']
 
@@ -380,12 +390,12 @@ def get_analysis(alg, run_stats, curves):
     min_row = run_stats[run_stats.Fitness == run_stats.Fitness.min()]
     best_fitness = min_row['Fitness']
     print(alg + " best fitness: " + str(best_fitness))
-    loss_curve = get_loss_curve(alg, curves, min_row)
+    loss_curve = get_loss_curves(alg, curves, min_row)
 
     return best_fitness, loss_curve
 
 def perform_nn(dataroot):
-    training_sample = 0.1
+    training_sample = 0.3
     num_features = 'munge'
     X_train, y_train, X_test, y_test = get_data_ford(training_sample, num_features)
     scoring = 'balanced_accuracy'
@@ -417,11 +427,11 @@ def perform_nn(dataroot):
         print("Executing NN with "+alg)
         max_iters = 200
         grid_search_parameters = {
-            'hidden_layer_sizes':[[100]],
+            'hidden_layer_sizes':[[100], [100, 200]],
             'max_iters': [max_iters],
-            #'learning_rate': [0.00001, 0.0001, 0.001, 0.01],
-            'learning_rate': [0.0001],
-            'activation': [rose.sigmoid],
+            'learning_rate': [0.00001, 0.0001, 0.001, 0.01],
+            #'learning_rate': [0.0001],
+            'activation': [rose.sigmoid, rose.tanh],
         }
 
         runner = get_the_runner(alg, X_train, y_train, X_test, y_test, grid_search_parameters, max_iters)
@@ -430,8 +440,8 @@ def perform_nn(dataroot):
         run_stats, curves, cv_results, grid_search_cv = runner.run()
         total_time = time.time() - start_time
         print(alg+" complete, running time: "+str(total_time))
-        #TODO: Function evals column name=FEvals?
         best_fitness, loss_curve = get_analysis(alg, run_stats, curves)
+        print(grid_search_cv.best_params_)
         all_curves[alg] = loss_curve
         all_fitness[alg] = best_fitness
         all_time[alg] = total_time
@@ -442,8 +452,9 @@ def perform_nn(dataroot):
         final_plots(run_type,best_estimator,alg, cross_val_folds,scoring,X_train,y_train,X_test,y_test,y_pred,smote)
 
 
-    pd.DataFrame(all_curves).plot(title="Neural Network Convergence", ylabel="Fitness", xlabel="Iterations")
-    plt.savefig("neural_network_convergence.png")
+    final_curves = pd.DataFrame(all_curves)
+    final_curves.plot(title="Neural Network Iterations Convergence", ylabel="Fitness", xlabel="Iterations", y="Fitness", x=final_curves.index)
+    plt.savefig("neural_network_convergence_iterations.png")
     plt.clf()
 
     total_results = pd.DataFrame([all_scoring, all_time, all_fitness])
