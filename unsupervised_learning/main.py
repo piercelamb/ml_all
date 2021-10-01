@@ -307,7 +307,7 @@ def get_confusion_matrix(optimal_clf, X_test, y_test, title, filename):
 def final_plots(run_type, clf, clf_type, cv, score, X_train, y_train, X_test, y_test, y_pred, smote):
     smote_text = "SMOTE" if smote[0] else 'reg'
     print(clf_type + " on scoring method " + score + " Balanced Accuracy score: " + str(balanced_accuracy_score(y_test, y_pred)))
-    print(clf_type + " on scoring method " + score + " f1 score: " + str(f1_score(y_test, y_pred)))
+    print(clf_type + " on scoring method " + score + " Accuracy score: " + str(accuracy_score(y_test, y_pred)))
     # get_confusion_matrix(clf, X_test, y_test, run_type + ' ' + smote_text + ' Confusion Matrix (' + clf_type + ')',
     #                      run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_confusion_matrix.png')
     plot_learning_curve(clf, run_type + ' ' + smote_text + ' Learning Curve (' + clf_type + ')', X_train,
@@ -398,7 +398,7 @@ def perform_nn(dataroot):
     training_sample = 0.3
     num_features = 'munge'
     X_train, y_train, X_test, y_test = get_data_ford(training_sample, num_features)
-    scoring = 'balanced_accuracy'
+    scoring = 'accuracy'
     cross_val_folds = 5
     smote = (False, None, None)
     run_type = 'FAD'
