@@ -453,7 +453,7 @@ def perform_nn(dataroot):
 
 
     final_curves = pd.DataFrame(all_curves)
-    final_curves.plot(title="Neural Network Iterations Convergence", ylabel="Fitness", xlabel="Iterations", y="Fitness", x=final_curves.index)
+    final_curves.plot(title="Neural Network Iterations Convergence", ylabel="Fitness", xlabel="Iterations")
     plt.savefig("neural_network_convergence_iterations.png")
     plt.clf()
 
