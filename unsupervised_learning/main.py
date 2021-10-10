@@ -20,6 +20,7 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.compose import make_column_transformer
 import sklearn.metrics as skmt
 from functools import partial
+from itertools import islice
 
 RANDOM_STATE = 1337
 
@@ -40,7 +41,7 @@ def get_alg(alg_name, kwargs, schedule, mutation_prob, keep_pct, vector_length):
         kwargs['keep_pct'] = keep_pct
         return rose.mimic(**kwargs)
 
-def vary_problem_size(alg_name,time_results, curve_results, func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters):
+def vary_problem_size(alg_name,time_results, curve_results, func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters, seed):
     print("Iters constant is: " + str(const_iters))
     curve_results[alg_name] = []
     for vector_length in state_vector_sizes:
@@ -48,7 +49,7 @@ def vary_problem_size(alg_name,time_results, curve_results, func_name, algs, fit
         kwargs = {'problem': opt_prob,
                   'max_attempts': max_attempts,
                   'max_iters': const_iters,
-                  'random_state': RANDOM_STATE,
+                  'random_state': seed,
                   'curve': curve}
 
         start_time = time.time()
@@ -63,29 +64,40 @@ def vary_problem_size(alg_name,time_results, curve_results, func_name, algs, fit
 
     return time_results, curve_results
 
-def vary_iteration_size(alg_name,time_results, curve_results, func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters):
+def vary_iteration_size(alg_name,time_results, curve_results, func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters, seeds):
     print("Problem constant is: "+str(const_problem))
+    iters_dfs = {}
     for iters in max_iters:
-        opt_prob = rose.DiscreteOpt(fitness_fn=fitness_func, maximize=maximize, length=const_problem)
-        kwargs = {'problem': opt_prob,
-                  'max_attempts': max_attempts,
-                  'max_iters': iters,
-                  'random_state': RANDOM_STATE,
-                  'curve': curve}
+        seeds_df = pd.DataFrame()
+        print("Initating with random seeds: "+str(len(seeds)))
+        for seed in seeds:
+            opt_prob = rose.DiscreteOpt(fitness_fn=fitness_func, maximize=maximize, length=const_problem)
+            kwargs = {'problem': opt_prob,
+                      'max_attempts': max_attempts,
+                      'max_iters': iters,
+                      'random_state': seed,
+                      'curve': curve}
 
-        start_time = time.time()
-        best_state, best_fitness, fitness_curve = get_alg(alg_name, kwargs, schedule, mutation_prob, keep_pct, const_problem)
-        end_time = time.time()
-        total_time = end_time - start_time
-        print("Iterations " + str(iters) + " took " + str(total_time) + " seconds")
+            start_time = time.time()
+            best_state, best_fitness, fitness_curve = get_alg(alg_name, kwargs, schedule, mutation_prob, keep_pct, const_problem)
+            # print(opt_prob.fitness_evaluations)
+            # exit(1)
+            #print(fitness_curve)
+            end_time = time.time()
+            total_time = end_time - start_time
+            print("Iterations " + str(iters) + " took " + str(total_time) + " seconds")
 
-        time_results.at[iters, alg_name] = total_time
-        curve_results[alg_name] = fitness_curve
-        kwargs.clear()
+            time_results.at[iters, alg_name+str(seed)] = total_time
+            for i in range(0, len(fitness_curve)):
+                seeds_df.at[i,seed] = fitness_curve[i][1]
+            kwargs.clear()
+        seeds_df[alg_name] = seeds_df.mean(axis=1)
+        seeds_df = seeds_df[alg_name]
+        iters_dfs[iters] = seeds_df
 
-    return time_results, curve_results
+    return time_results, iters_dfs
 
-def get_and_plot_alg_results(func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters):
+def get_and_plot_alg_results(func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters, seeds):
     experiments = {
         'iterations':vary_iteration_size,
         'problem_size': vary_problem_size
@@ -93,13 +105,48 @@ def get_and_plot_alg_results(func_name, algs, fitness_func, state_vector_sizes, 
     for experiment_name, experiment in experiments.items():
         print("------------")
         print("Varying "+experiment_name)
-        time_results = pd.DataFrame(None, columns=algs)
-        curve_results = {}
+        avg_time_results = pd.DataFrame(None, columns=algs)
+        avg_curve_results = {}
         for alg_name in algs:
+            time_results = pd.DataFrame()
+            curve_results = pd.DataFrame()
+            #for seed in seeds:
             print("Executing alg: "+alg_name)
-            time_results, curve_results = experiment(alg_name, time_results, curve_results, func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters)
+            time_results, exp_dfs = experiment(alg_name, time_results, curve_results, func_name, algs, fitness_func, state_vector_sizes, max_attempts, max_iters, mutation_prob, keep_pct, maximize, schedule, curve, const_problem, const_iters, seeds)
+            # for lol1,lol2 in curve_results.items():
+            #     print(lol1)
+            #     print(lol2[:10])
+            time_results[alg_name] = time_results.mean(axis=1) #get time mean across experiment
+            avg_time_results[alg_name] = time_results[alg_name]
+            # print(curve_results)
+            # avg_fitness = {}
+            #
+            # for run, fitness_tuple in curve_results.items():
+            avg_curve_results[alg_name] = exp_dfs
 
-        plot_results(func_name, experiment_name, time_results, curve_results, max_iters,state_vector_sizes)
+        plotting_df = pd.DataFrame()
+        for iters in max_iters:
+            for alg_name, iters_list in avg_curve_results.items():
+                for iters_num, df in iters_list.items():
+                    if iters_num == iters:
+                        plotting_df[alg_name] = df
+                        # print(fifty)
+                        # exit(1)
+
+
+            ax = plt.gca()
+            plt.grid(True)
+            plt.title(func_name + " problem " + experiment_name + " results")
+            plt.xlabel(experiment_name)
+            plt.ylabel('Fitness')
+            for column in plotting_df:
+                plotting_df.plot(kind='line', y=column, ax=ax)
+            plt.legend(loc="best")
+            plt.savefig(func_name + "_problem_fitness_results_" + experiment_name +str(iters)+ ".png")
+            plt.clf()
+            #print(fifty)
+            exit(1)
+        plot_results(func_name, experiment_name, avg_time_results, avg_curve_results, max_iters,state_vector_sizes)
 
 
 
@@ -141,10 +188,10 @@ def perform_experiments():
     # const_problem = 200
     # max_attempts = 100
     # max_iters = [100, 1000, 5000, 10000]
-    problem_sizes = [50, 100, 150, 200]
+    problem_sizes = [50, 100, 150]
     const_problem = 100
     max_attempts = 100
-    max_iters = [50, 200, 400, 600]
+    max_iters = [50, 200, 400]
     const_iters = 100
     mutation_prob = 0.5
     keep_pct = 0.5
@@ -158,11 +205,15 @@ def perform_experiments():
                         #'Flip_Flop': rose.FlipFlop()
     }
     algs = [
-        'hill_climb',
-        'annealing',
+        #'hill_climb',
+        #'annealing',
         'genetic',
-        'mimic'
+        #'mimic'
     ]
+    random_seeds = [
+        1,2,3,4,5
+    ]
+
     for name, fitness_func in fitness_funcs.items():
         print("\n-------------------------------------\n")
         print("Running fitness_func: "+name)
@@ -179,7 +230,8 @@ def perform_experiments():
             schedule,
             curve,
             const_problem,
-            const_iters
+            const_iters,
+            random_seeds
         )
 
 def drop_correlated_columns(X_train, X_test):
