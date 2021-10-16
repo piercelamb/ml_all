@@ -34,10 +34,7 @@ def plot_results(func_name, alg_name, final_df, problem_size):
                 y="Mean_Fitness", x="Mean_FEvals")
     plt.savefig(func_name+"_"+ alg_name +"_"+ str(problem_size)+"_avg_fitness_fevals.png")
     plt.clf()
-    # final_df.plot(title=alg_name+" Avg Time over Iterations", xlabel="Function Evaluations", ylabel="Time",
-    #             y="Mean_Time", x="Mean_FEvals")
-    # plt.savefig(alg_name + "_avg_time_iterations.png")
-    # plt.clf()
+
 
 def plot_combined_results(func_name,combined_df, problem_size):
     cols = combined_df.columns
@@ -47,16 +44,6 @@ def plot_combined_results(func_name,combined_df, problem_size):
     plt.savefig(func_name +"_"+ str(problem_size)+ "_COMBINED_avg_fitness_iterations.png")
     plt.clf()
 
-    # fevals_cols = filter(lambda x: x.endswith('_fevals'), cols)
-    # fevals_only = combined_df[fevals_cols]
-    # mean_fevals = pd.DataFrame()
-    # mean_fevals['Mean_FEvals'] = fevals_only.mean(axis=1)
-    # fitness_only['FEvals'] = mean_fevals
-    # combined_df.plot(title=func_name+" Avg Fitness over Avg FEvals", xlabel="Function Evaluations", ylabel="Fitness",
-    #             y=fitness_cols, x=fevals_cols)
-    # plt.savefig(func_name + "_COMBINED_avg_fitness_fevals.png")
-    # plt.clf()
-    # exit(1)
 
 def get_analysis(alg,run_stats, curves, seed):
     #run_stats = run_stats[run_stats['Iteration'] != 0]
@@ -129,7 +116,6 @@ def get_and_plot_alg_results(func_name, algs, fitness_func, total_time, state_ve
         final_df['Mean_Time'] = avg_time['Mean_Time']
         final_df['Mean_FEvals'] = avg_fevals['Mean_FEvals']
         final_df['Mean_Fitness'] = avg_fitness['Mean_Fitness']
-        #pd.set_option("display.max_rows", None, "display.max_columns", None)
 
         calc_time = final_df[final_df['Mean_Fitness'] < statistics.mean(best_fitness_arr)]
         mean_time = calc_time['Mean_Time'].sum()
@@ -178,11 +164,6 @@ def get_alg(alg_name, opt_prob, func_name, seed):
         return MIMICRunner(**default_params, **custom_params)
 
 def perform_experiments():
-    #before mimic choked:
-    # problem_sizes = [100, 250, 500, 750]
-    # const_problem = 200
-    # max_attempts = 100
-    # max_iters = [100, 1000, 5000, 10000]
     problem_sizes = [100, 200]
     const_problem = [100, 200]
     max_attempts = 100
@@ -196,14 +177,14 @@ def perform_experiments():
     print('Constructing Fitness Functions')
     fitness_funcs = {
                         'One_Max': rose.OneMax(),
-                        #'Four_Peaks': rose.FourPeaks(),
-                        #'Flip_Flop': rose.FlipFlop()
+                        'Four_Peaks': rose.FourPeaks(),
+                        'Flip_Flop': rose.FlipFlop()
     }
     algs = [
         'hill_climb',
         'annealing',
-        #'genetic',
-        #'mimic'
+        'genetic',
+        'mimic'
     ]
     random_seeds = [
         1,2,3
@@ -239,8 +220,6 @@ if __name__ == "__main__":
         dataroot = '/Users/plamb/Documents/Personal/Academic/Georgia Tech/Classes/ML/hw/unsupervised_learning/data/'
     if passed_arg == 'experiments':
         perform_experiments()
-    elif passed_arg == 'nn':
-        perform_nn(dataroot)
     else:
         print("please run with an absolute path to the data")
         exit(146)

@@ -344,24 +344,11 @@ def plot_learning_curve(model,title,X_train,y_train,cv, filename,scoring):
     plt.savefig(filename)
     plt.clf()
 
-def get_confusion_matrix(optimal_clf, X_test, y_test, title, filename):
-    confusion_matrix = plot_confusion_matrix(
-        optimal_clf,
-        X_test,
-        y_test,
-        cmap=plt.cm.Blues,
-        normalize='true'
-    )
-    confusion_matrix.ax_.set_title(title)
-    plt.savefig(filename)
-    plt.clf()
 
 def final_plots(run_type, clf, clf_type, cv, score, X_train, y_train, X_test, y_test, y_pred, smote):
     smote_text = "SMOTE" if smote[0] else 'reg'
     print(clf_type + " on scoring method " + score + " Balanced Accuracy score: " + str(balanced_accuracy_score(y_test, y_pred)))
     print(clf_type + " on scoring method " + score + " Accuracy score: " + str(accuracy_score(y_test, y_pred)))
-    # get_confusion_matrix(clf, X_test, y_test, run_type + ' ' + smote_text + ' Confusion Matrix (' + clf_type + ')',
-    #                      run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_confusion_matrix.png')
     plot_learning_curve(clf, run_type + ' ' + smote_text + ' Learning Curve (' + clf_type + ')', X_train,
                         y_train, cv=cv, scoring=score,
                         filename=run_type + '_' + smote_text + '_' + clf_type + '_' + score + '_Learning_Curve.png')
@@ -433,7 +420,6 @@ def get_loss_curves(alg, curves, min_row):
                     y="Fitness")
         plt.savefig(alg + "_nn_fevals.png")
         plt.clf()
-        #return curves[['Fitness', 'FEvals']]
 
     return curves['Fitness']
 
@@ -454,12 +440,6 @@ def perform_nn(dataroot):
     cross_val_folds = 5
     smote = (False, None, None)
     run_type = 'FAD'
-
-    # smote = (True, 0.6)
-    # X_train, y_train, X_test, y_test = get_data_OSI(smote)
-    # scoring = 'f1'
-    # cross_val_folds = 10
-    # run_type = 'OSI'
 
     #assignment1 FAD params: 1 layer, 150 neurons, tanh as activation
     #assignment1 OSI params: 2 layers, 100 neurons, sigmoid
@@ -482,7 +462,6 @@ def perform_nn(dataroot):
             'hidden_layer_sizes':[[100], [100, 200]],
             'max_iters': [max_iters],
             'learning_rate': [0.00001, 0.0001, 0.001, 0.01],
-            #'learning_rate': [0.0001],
             'activation': [rose.sigmoid, rose.tanh],
         }
 

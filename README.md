@@ -3,7 +3,7 @@
 ### This repo contains four assignments covering:
 ### 1. [Supervised Learning](#supervised-learning) 
 ### 2. [Unsupervised Learning](#unsupervised-learning) 
-### 3. Dimensionality Reduction
+### 3. [Dimensionality Reduction](#dimensionality-reduction)
 ### 4. Reinforcement Learning
 
 #### A note on commit messages: 
@@ -56,7 +56,7 @@ An example being:
 
 `/Users/plamb/opt/miniconda3/envs/cs7641/bin/python clean.py ford`
 
-##About the assignment
+## About the assignment:
 For this assignment, we chose two datasets at random that contained 
 classification problems. The goal was to optimally train five different supervised 
 learners on the datasets and test how they performed on the classification 
@@ -131,13 +131,11 @@ around so many function parameters (perhaps using **args or **kwargs).
 ***
 ## Unsupervised Learning
 
-###THIS PART IS A WIP
-cd Documents/Personal/Academic/Georgia\ Tech/Classes/ML/hw/unsupervised_learning/
+### To run the code (for the impatient):
 
-### - To run the code:
-If you've cloned the repo, you'll need to download the datasets and put them in the
-`/supervised_learning/data` folder. The links above contain easy-to-find links to download.
-Note Online Shopping Intention has a single CSV while Ford Alertness was already split into
+You should read all the context below, but if you've cloned the repo, you'll need to download the Ford Alertness dataset
+`/unsupervised_learning/data` folder. The links above contain easy-to-find links to download.
+Note the Ford Alertness data was already split into
 Train/Test/Solution. All of these CSVs should be in `/data`
 
 I installed [miniconda](https://docs.conda.io/en/latest/miniconda.html) in order to create
@@ -165,12 +163,67 @@ Activate the environment with:
 
 `conda activate randomized_optimization`
 
-At this point I would open `clean.py` in your editor to see which learner(s) is/are going to run.
-To easily get there do a find for either `run_ford` or `run_shoppers`.
-Once you're happy with what's running execute the below:
+This repo contains `main.py` and `main2.py`. This occurred because I originally wrote all the code for this assignment
+prior to the midterm, then after learning more about the assignment (e.g. averaging over random seeds) needed
+to re-write part 1 to account for this learning. I decided to just create a new file `main2.py` to capture this. Because
+of the need to re-write I was pressed for time and was not able to write as clean of code.
 
-`path-to-conda-python main.py`
+To run part 1:
+`path-to-conda-python main2.py experiments`
 
+To run part 2:
+`path-to-conda-python main.py nn /your/dataroot`
+
+(you can also change the dataroot in the code in the main function)
 An example being:
 
-`/Users/plamb/opt/miniconda3/envs/randomized_optimization/bin/python main.py`
+`/Users/plamb/opt/miniconda3/envs/cs7641/bin/python main.py nn`
+
+## About the Assignment:
+For part 1 of this assignment we chose 3 fitness functions that would highlight differences among four randomized optimization
+algorithms. The four RO algorithms we needed to highlight were Random Hill Climbing (RHC), Simulated Annealing (SA), 
+Genetic Algorithms (GA) and MIMIC. The three fitness functions I chose were the OneMax Problem, The Four Peaks Problem
+and The Flip Flop problem. Each problem is presented as a discrete optimization problem with binary number state vectors.
+
+For part 2 of this assignment, we attempted to tune a Neural Network over one of our datasets from Supervised Learning
+using RHC, SA and GA as the algorithm that will assign weights inside of it. Further, we train the NN with gradient descent
+as well to use as a benchmark. I chose the Ford Alertness Dataset and reduced it in exactly the same way as I did for Supervised Learning.
+
+mlrose_hiive's Runner classes are used in both parts to tune hyperparamters among a set of sensible parameter choices
+and with an eye towards time complexity. Values are extracted from the Runner classes results for plotting and analysis.
+
+## About the code:
+As mentioned above, this assignment overlapped with a midterm making working on it a discontinuous endeavor.
+My goal was to get the code all written and experiments run prior to studying for the midterm which I was able to do,
+but as more office hours came out, more requirements were elucidated. As such, I had to re-write part 1 after the midterm which
+is why `main2.py` exists and the code is a bit sloppy.
+
+In essence, the part 1 code takes a list of fitness functions (onemax, fourpeaks, flipflop), a list of random seeds,
+a list of RO algorithms and a list of problem sizes (problem sizes just are the size of the state vector in each case).
+The code iterates the problem sizes, selecting one, then iterates the fitness funcs selecting one then iterates
+the algorithms selecting one and finally iterates the random seeds selecting one. It runs the given alg's runner 
+using the given fitness func and random seed and produces results (fitness, function evaluations and time). 
+The results are combined across each seed and then averaged. These averaged results are plotted (fitness x iterations, fitness x function evals)
+and then when all the algorithms finish, fitness x iterations is plotted for each on the same graph. Wall clock time is
+written to a HTML file, capturing both time-to-peak fitness, and time to complete the experiment. Different plots are produced
+for each problem size.
+
+The part 2 code loads the Ford Alertness Dataset, reduces it as in Supervised Learning, takes a list of
+algorithms and iterates them passing the dataset and algorithm to hiive's `NNGSRunner`. NNGSRunner uses
+sklearn's `GridSearchCV` internally to tune hyperparameters. As such, a set of hyperparameters are passed
+to it as well which include sensible values (learned from Supervised Learning) for default params (hidden layers, learning rate etc)
+and sensible values for custom params (for e.g, RHC gets a 'restart_list' parameter). Here sensible is defined
+as a tradeoff between improving the algorithms performance but also being wary of time complexity. Once 
+NNGSRunner completes, a loss curve is generated over iterations and function evaluations. The best estimator is extracted from the underlying 
+GridSearchCV object and used to generate a learning curve. Finally, wall clock times are written to a HTML file.
+
+The code produces helpful print statements to let you know what is going on.
+
+This code could definitely be improved, there are areas where looping could be used to make things more succint. 
+Similarly to Supervised Learning, I could have split common functions into their own files/classes to make the code
+cleaner and easier to grok. Again, this being my first foray into ML code, a lot of learning took place.
+
+***
+## Dimensionality Reduction
+
+WIP
