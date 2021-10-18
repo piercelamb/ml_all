@@ -158,21 +158,29 @@ def run_clustering_shoppers(dataroot, k_clusters, metrics, smote):
 
     run_clustering_algs(run_type, k_clusters, metrics, clean_attrs)
 
-def run_clustering_ford(dataroot, k_clusters, metrics):
+def run_clustering_ford(dataroot, k_clusters, metrics, dataset_sample):
     run_type = 'FAD'
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
-    run_clustering_algs(run_type, k_clusters, metrics, df_train)
+    y_train = df_train['IsAlert']
+    X_train = df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
+    if dataset_sample != 0:
+        print("Sampling the training set at: "+str(dataset_sample))
+        X_train, X_test_new, y_train, y_test_new = train_test_split(X_train, y_train, train_size=dataset_sample,
+                                                            random_state=RANDOM_STATE)
+    print("Sampled number of instances: "+str(len(X_train.index)))
+    run_clustering_algs(run_type, k_clusters, metrics, X_train)
 
 
 def run_clustering(dataroot):
     smote = (False, 0.6)
+    training_sample = 0.3
     k_clusters = (2,25)
     metrics = ['distortion', 'silhouette', 'calinski_harabasz']
-    print("Running clustering on OCI dataset")
-    run_clustering_shoppers(dataroot, k_clusters, metrics, smote)
+    #print("Running clustering on OCI dataset")
+    #run_clustering_shoppers(dataroot, k_clusters, metrics, smote)
     print("\n----------------------------------\n")
     print("Running clustering on FAD dataset")
-    run_clustering_ford(dataroot, k_clusters, metrics)
+    run_clustering_ford(dataroot, k_clusters, metrics, training_sample)
 
 
 if __name__ == "__main__":
