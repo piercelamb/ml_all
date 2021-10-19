@@ -210,31 +210,21 @@ def pca_determine_components(run_type, explained_variance, X_train):
 
 def compare_labelings(dr_type, X_train, y_train):
     if dr_type == 'PCA':
-        ns = [5,6,7,8,9,10,11,12,13]
-        scores = {}
-        for n in ns:
-            #kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(X_train)
-            #non_pca_labels = kmeans.labels_
-            pca_trans_data = PCA(n_components=n).fit_transform(X_train)
-            PCA_kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(pca_trans_data)
-            pca_labels = PCA_kmeans.labels_
-            true_labels = y_train.to_numpy()
-            scores[n] = v_measure_score(true_labels,pca_labels)
-
-        print(scores)
-        max_key = max(scores, key=scores.get)
-        print(max_key)
-        print(scores[max_key])
-        exit(1)
-            # print(homogeneity_completeness_v_measure(non_pca_labels, pca_labels))
-            # print(homogeneity_completeness_v_measure(non_pca_labels, true_labels))
-            # print(homogeneity_completeness_v_measure(pca_labels, true_labels))
+        kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(X_train)
+        non_pca_labels = kmeans.labels_
+        pca_trans_data = PCA(n_components=11).fit_transform(X_train)
+        PCA_kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(pca_trans_data)
+        pca_labels = PCA_kmeans.labels_
+        true_labels = y_train.to_numpy()
+        print(homogeneity_completeness_v_measure(non_pca_labels, pca_labels))
+        print(homogeneity_completeness_v_measure(non_pca_labels, true_labels))
+        print(homogeneity_completeness_v_measure(pca_labels, true_labels))
+        #TODO run intercluster distance plots of pca KMEANs vs reg kmeans?
 
 def run_PCA(run_type, explained_variance, X_train, y_train):
     pca_determine_components(run_type, explained_variance, X_train)
     compare_labelings('PCA', X_train, y_train)
-    #TODO another option here would be looping over different n_components and picking
-    #TODO which PCA maximizes v_measure_score between clustered labels and actual labels
+
 
 def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
     print("Running PCA")
