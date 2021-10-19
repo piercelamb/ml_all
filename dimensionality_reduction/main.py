@@ -2,6 +2,7 @@ import sys
 import pandas as pd
 import numpy as np
 import matplotlib
+from sklearn.decomposition import PCA
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from numpy import mean
@@ -11,7 +12,7 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from sklearn import tree as dt
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, v_measure_score, homogeneity_completeness_v_measure
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import RobustScaler
 from sklearn.compose import make_column_transformer
@@ -129,11 +130,11 @@ def run_clustering_algs(run_type, k_clusters, metrics, X):
 
 
 
-def run_clustering_shoppers(dataroot, k_clusters, metrics, smote):
+def get_data_shoppers(dataroot, smote):
     run_type = 'OSI'
     datapath = dataroot + 'online_shoppers_intention.csv'
     df = pd.read_csv(datapath)
-    target = df['Revenue']
+    target = df['Revenue'].astype(int)
     attributes = df.drop('Revenue', axis=1, )
     string_columns = ['Month', 'VisitorType', 'Weekend']
     numerical_columns = ['Administrative', 'Administrative_Duration', 'Informational',
@@ -155,32 +156,108 @@ def run_clustering_shoppers(dataroot, k_clusters, metrics, smote):
     #     imbPipeline = get_smote_pipeline(smote)
     #     X_train, y_train = imbPipeline.fit_resample(X_train, y_train)
     #     print("Smote resampling complete, Counter after: "+str(Counter(y_train)))
+    return run_type, clean_attrs, target
 
-    run_clustering_algs(run_type, k_clusters, metrics, clean_attrs)
-
-def run_clustering_ford(dataroot, k_clusters, metrics, dataset_sample):
+def get_data_ford(dataroot, dataset_sample):
     run_type = 'FAD'
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
     y_train = df_train['IsAlert']
     X_train = df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
     if dataset_sample != 0:
-        print("Sampling the training set at: "+str(dataset_sample))
+        print("Sampling the training set at: " + str(dataset_sample))
         X_train, X_test_new, y_train, y_test_new = train_test_split(X_train, y_train, train_size=dataset_sample,
-                                                            random_state=RANDOM_STATE)
-    print("Sampled number of instances: "+str(len(X_train.index)))
-    run_clustering_algs(run_type, k_clusters, metrics, X_train)
-
+                                                                    random_state=RANDOM_STATE)
+    print("Sampled number of instances: " + str(len(X_train.index)))
+    print("Scaling data to range 0 -> 1")
+    scaler = MinMaxScaler()
+    X_train_rescaled = scaler.fit_transform(X_train)
+    return run_type, X_train_rescaled, y_train
 
 def run_clustering(dataroot):
     smote = (False, 0.6)
     training_sample = 0.3
     k_clusters = (2,25)
     metrics = ['distortion', 'silhouette', 'calinski_harabasz']
-    #print("Running clustering on OCI dataset")
-    #run_clustering_shoppers(dataroot, k_clusters, metrics, smote)
+    print("Running clustering on OCI dataset")
+    run_type, X_train, y_train = get_data_shoppers(dataroot, smote)
+    run_clustering_algs(run_type, k_clusters, metrics, X_train)
     print("\n----------------------------------\n")
     print("Running clustering on FAD dataset")
-    run_clustering_ford(dataroot, k_clusters, metrics, training_sample)
+    run_type, X_train, y_train = get_data_ford(dataroot, training_sample)
+    run_clustering_algs(run_type, k_clusters, metrics, X_train)
+
+def pca_determine_components(run_type, explained_variance, X_train):
+    pca = PCA(n_components=explained_variance).fit(X_train)
+
+    fig, ax = plt.subplots()
+    y = np.cumsum(pca.explained_variance_ratio_)
+    y_len = len(y)
+    xi = np.arange(1, y_len + 1, step=1)
+
+    plt.ylim(0.0, 1.1)
+    plt.plot(xi, y, marker='o', linestyle='--', color='b')
+
+    plt.xlabel('Number of Components')
+    plt.xticks(np.arange(0, y_len + 1, step=1))  # change from 0-based array index to 1-based human-readable label
+    plt.ylabel('Cumulative variance (%)')
+    plt.title('The number of components needed to explain variance')
+
+    plt.axhline(y=explained_variance, color='r', linestyle='-')
+    plt.text(0.5, 0.85, str(explained_variance) + ' cut-off threshold', color='red', fontsize=16)
+
+    ax.grid(axis='x')
+    plt.savefig(run_type + "_pca_optimization.png")
+
+def compare_labelings(dr_type, X_train, y_train):
+    if dr_type == 'PCA':
+        ns = [5,6,7,8,9,10,11,12,13]
+        scores = {}
+        for n in ns:
+            #kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(X_train)
+            #non_pca_labels = kmeans.labels_
+            pca_trans_data = PCA(n_components=n).fit_transform(X_train)
+            PCA_kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(pca_trans_data)
+            pca_labels = PCA_kmeans.labels_
+            true_labels = y_train.to_numpy()
+            scores[n] = v_measure_score(true_labels,pca_labels)
+
+        print(scores)
+        max_key = max(scores, key=scores.get)
+        print(max_key)
+        print(scores[max_key])
+        exit(1)
+            # print(homogeneity_completeness_v_measure(non_pca_labels, pca_labels))
+            # print(homogeneity_completeness_v_measure(non_pca_labels, true_labels))
+            # print(homogeneity_completeness_v_measure(pca_labels, true_labels))
+
+def run_PCA(run_type, explained_variance, X_train, y_train):
+    pca_determine_components(run_type, explained_variance, X_train)
+    compare_labelings('PCA', X_train, y_train)
+    #TODO another option here would be looping over different n_components and picking
+    #TODO which PCA maximizes v_measure_score between clustered labels and actual labels
+
+def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
+    print("Running PCA")
+    run_PCA(run_type, explained_variance, X_train, y_train)
+    #print("Running ICA")
+    #run_ICA()
+    #print("Running RP")
+    #run_RP()
+    #print("Running LDA")
+    #run_LDA()
+
+def run_dim_reduction(dataroot):
+    smote = (False, 0.6)
+    training_sample = 0
+    explained_variance = 0.9
+    print("Running dimensionality reduction on OCI dataset")
+    run_type, X_train, y_train = get_data_shoppers(dataroot, smote)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train)
+    print("\n----------------------------------\n")
+    print("Running dimensionality reduction on FAD dataset")
+    run_type, X_train, y_train = get_data_ford(dataroot, training_sample)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train)
+
 
 
 if __name__ == "__main__":
@@ -191,8 +268,8 @@ if __name__ == "__main__":
         dataroot = '/Users/plamb/Documents/Personal/Academic/Georgia Tech/Classes/ML/hw/dimensionality_reduction/data/'
     if passed_arg == 'clustering':
         run_clustering(dataroot)
-    # if passed_arg == 'shoppers':
-    #     run_shoppers(dataroot)
+    if passed_arg == 'dr':
+        run_dim_reduction(dataroot)
     # elif passed_arg == 'ford':
     #     run_ford(dataroot)
     else:
