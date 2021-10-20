@@ -242,19 +242,16 @@ def compare_labelings(dr_type, run_type, X_train, y_train):
     em = GaussianMixture(n_components=2, random_state=RANDOM_STATE)
     for alg in algs:
         if dr_type == 'PCA':
-            pca_trans_data = PCA(n_components=15).fit_transform(X_train)
+            n = 14 if run_type == 'OSI' else 12
+            pca_trans_data = PCA(n_components=n).fit_transform(X_train)
             if alg == 'kmeans':
                 print("Testing PCA on "+alg)
-                kmeans_fitted = kmeans.fit(X_train)
-                non_pca_labels = kmeans_fitted.labels_
-                PCA_kmeans_fitted = kmeans.fit(pca_trans_data)
-                pca_labels = PCA_kmeans_fitted.labels_
+                non_pca_labels = kmeans.fit_predict(X_train)
+                pca_labels = kmeans.fit_predict(pca_trans_data)
             else:
                 print("Testing PCA on " + alg)
-                em_fitted = em.fit(X_train)
-                non_pca_labels = em_fitted.predict(X_train)
-                PCA_em_fitted = em.fit(pca_trans_data)
-                pca_labels = PCA_em_fitted.predict(pca_trans_data)
+                non_pca_labels = em.fit_predict(X_train)
+                pca_labels = em.fit_predict(pca_trans_data)
             print(homogeneity_completeness_v_measure(non_pca_labels, true_labels))
             print(homogeneity_completeness_v_measure(pca_labels, true_labels))
         if dr_type == 'ICA':
@@ -262,17 +259,12 @@ def compare_labelings(dr_type, run_type, X_train, y_train):
             ica_trans_data = FastICA(n_components=n).fit_transform(X_train)
             if alg == 'kmeans':
                 print("Testing ICA on " + alg)
-                kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE)
-                kmeans_fitted = kmeans.fit(X_train)
-                non_ica_labels = kmeans_fitted.labels_
-                ICA_kmeans_fitted = kmeans.fit(ica_trans_data)
-                ica_labels = ICA_kmeans_fitted.labels_
+                non_ica_labels = kmeans.fit_predict(X_train)
+                ica_labels = kmeans.fit_predict(ica_trans_data)
             else:
                 print("Testing ICA on " + alg)
-                em_fitted = em.fit(X_train)
-                non_ica_labels = em_fitted.predict(X_train)
-                ICA_em_fitted = em.fit(ica_trans_data)
-                ica_labels = ICA_em_fitted.predict(ica_trans_data)
+                non_ica_labels = em.fit_predict(X_train)
+                ica_labels = em.fit_predict(ica_trans_data)
             print(homogeneity_completeness_v_measure(non_ica_labels, true_labels))
             print(homogeneity_completeness_v_measure(ica_labels, true_labels))
 
