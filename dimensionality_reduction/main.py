@@ -2,7 +2,7 @@ import sys
 import pandas as pd
 import numpy as np
 import matplotlib
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, FastICA
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from numpy import mean
@@ -187,7 +187,7 @@ def run_clustering(dataroot):
     run_clustering_algs(run_type, k_clusters, metrics, X_train)
 
 def pca_determine_components(run_type, explained_variance, X_train):
-    pca = PCA(n_components=explained_variance).fit(X_train)
+    pca = PCA().fit(X_train)
 
     fig, ax = plt.subplots()
     y = np.cumsum(pca.explained_variance_ratio_)
@@ -207,30 +207,95 @@ def pca_determine_components(run_type, explained_variance, X_train):
 
     ax.grid(axis='x')
     plt.savefig(run_type + "_pca_optimization.png")
+    plt.clf()
+    exit(1)
 
-def compare_labelings(dr_type, X_train, y_train):
-    if dr_type == 'PCA':
-        kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(X_train)
-        non_pca_labels = kmeans.labels_
-        pca_trans_data = PCA(n_components=11).fit_transform(X_train)
-        PCA_kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit(pca_trans_data)
-        pca_labels = PCA_kmeans.labels_
-        true_labels = y_train.to_numpy()
-        print(homogeneity_completeness_v_measure(non_pca_labels, pca_labels))
-        print(homogeneity_completeness_v_measure(non_pca_labels, true_labels))
-        print(homogeneity_completeness_v_measure(pca_labels, true_labels))
-        #TODO run intercluster distance plots of pca KMEANs vs reg kmeans?
+def ica_determine_components(run_type, X_train, y_train):
+    n_components_list = range (1, 31)
+    fastICA = FastICA(random_state=RANDOM_STATE)
+    kurtosis = {}
+    for n in n_components_list:
+        print("Testing components: "+str(n))
+        fastICA.set_params(n_components=n)
+        ica_results = fastICA.fit_transform(X_train)
+        df = pd.DataFrame(ica_results)
+        df = df.kurt(axis=0)
+        avg_kurt = df.abs().mean()
+        print("Average kurtosis: "+str(avg_kurt))
+        kurtosis[n] = avg_kurt
 
-def run_PCA(run_type, explained_variance, X_train, y_train):
-    pca_determine_components(run_type, explained_variance, X_train)
-    compare_labelings('PCA', X_train, y_train)
+    max_n = max(kurtosis, key=kurtosis.get)
+    print("The max kurtosis is: "+str(kurtosis[max_n])+" with n of: "+str(max_n))
+
+    kurtosis = pd.Series(kurtosis)
+    plot = kurtosis.plot(
+        xlabel="Num of Components", ylabel="Average Kurtosis", title=run_type+" Kurtosis over Independent Components"
+    )
+    fig = plot.get_figure()
+    fig.savefig(run_type+"_ICA_kurtosis_components.png")
+    plt.clf()
+
+def compare_labelings(dr_type, run_type, X_train, y_train):
+    algs = ['kmeans', 'em']
+    true_labels = y_train.to_numpy()
+    kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE)
+    em = GaussianMixture(n_components=2, random_state=RANDOM_STATE)
+    for alg in algs:
+        if dr_type == 'PCA':
+            pca_trans_data = PCA(n_components=15).fit_transform(X_train)
+            if alg == 'kmeans':
+                print("Testing PCA on "+alg)
+                kmeans_fitted = kmeans.fit(X_train)
+                non_pca_labels = kmeans_fitted.labels_
+                PCA_kmeans_fitted = kmeans.fit(pca_trans_data)
+                pca_labels = PCA_kmeans_fitted.labels_
+            else:
+                print("Testing PCA on " + alg)
+                em_fitted = em.fit(X_train)
+                non_pca_labels = em_fitted.predict(X_train)
+                PCA_em_fitted = em.fit(pca_trans_data)
+                pca_labels = PCA_em_fitted.predict(pca_trans_data)
+            print(homogeneity_completeness_v_measure(non_pca_labels, true_labels))
+            print(homogeneity_completeness_v_measure(pca_labels, true_labels))
+        if dr_type == 'ICA':
+            n = 26 if run_type == 'OSI' else 29
+            ica_trans_data = FastICA(n_components=n).fit_transform(X_train)
+            if alg == 'kmeans':
+                print("Testing ICA on " + alg)
+                kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE)
+                kmeans_fitted = kmeans.fit(X_train)
+                non_ica_labels = kmeans_fitted.labels_
+                ICA_kmeans_fitted = kmeans.fit(ica_trans_data)
+                ica_labels = ICA_kmeans_fitted.labels_
+            else:
+                print("Testing ICA on " + alg)
+                em_fitted = em.fit(X_train)
+                non_ica_labels = em_fitted.predict(X_train)
+                ICA_em_fitted = em.fit(ica_trans_data)
+                ica_labels = ICA_em_fitted.predict(ica_trans_data)
+            print(homogeneity_completeness_v_measure(non_ica_labels, true_labels))
+            print(homogeneity_completeness_v_measure(ica_labels, true_labels))
+
+                # viz = InterclusterDistance(kmeans)
+                # viz.fit(X_train)
+                # viz.finalize()
+                # viz.show(outpath=run_type + "_kmeans_no_PCA_interclusterdistance.png")
+                # plt.clf()
+                #
+                # viz = InterclusterDistance(PCA_kmeans)
+                # viz.fit(pca_trans_data)
+                # viz.finalize()
+                # viz.show(outpath=run_type + "_kmeans_" + dr_type + "_interclusterdistance.png")
+
 
 
 def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
     print("Running PCA")
-    run_PCA(run_type, explained_variance, X_train, y_train)
+    # pca_determine_components(run_type, explained_variance, X_train)
+    compare_labelings('PCA', run_type, X_train, y_train)
     #print("Running ICA")
-    #run_ICA()
+    #ica_determine_components(run_type, X_train, y_train)
+    #compare_labelings('ICA', run_type, X_train, y_train)
     #print("Running RP")
     #run_RP()
     #print("Running LDA")
@@ -239,7 +304,7 @@ def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
 def run_dim_reduction(dataroot):
     smote = (False, 0.6)
     training_sample = 0
-    explained_variance = 0.9
+    explained_variance = 0.95
     print("Running dimensionality reduction on OCI dataset")
     run_type, X_train, y_train = get_data_shoppers(dataroot, smote)
     dimensionality_reduction(run_type, explained_variance, X_train, y_train)
