@@ -2,10 +2,13 @@ import sys
 import pandas as pd
 import numpy as np
 import matplotlib
+from scipy import sparse
+from scipy import linalg
 from sklearn.decomposition import PCA, FastICA
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from numpy import mean
+from sklearn.random_projection import GaussianRandomProjection, SparseRandomProjection
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 matplotlib.use("TkAgg")
@@ -48,6 +51,7 @@ from sklearn.base import ClusterMixin
 from sklearn.mixture import GaussianMixture
 from yellowbrick.cluster import KElbow
 import statistics
+from itertools import product
 
 RANDOM_STATE = 1337
 def get_smote_pipeline(smote):
@@ -235,6 +239,52 @@ def ica_determine_components(run_type, X_train, y_train):
     fig.savefig(run_type+"_ICA_kurtosis_components.png")
     plt.clf()
 
+def rp_determine_components(run_type, X_train, y_train):
+    n_components = range(2, 30)
+    seeds = range(1,11)
+
+    RPs = ['sparse', 'gaussian']
+    sparse_df = pd.DataFrame(index=n_components)
+    gaussian_df = pd.DataFrame(index=n_components)
+    print("Exexcuting seeds and components")
+    for component in n_components:
+        for seed in seeds:
+            for rp in RPs:
+                if rp == 'sparse':
+                    model = SparseRandomProjection(random_state=seed, n_components=component)
+                    df = sparse_df
+                else:
+                    model = GaussianRandomProjection(n_components=component, random_state=seed)
+                    df = gaussian_df
+                model.fit(X_train)
+                #get reconstruction error
+                components = model.components_
+                if sparse.issparse(components):
+                    components = components.todense()
+                inverse = linalg.pinv(components)
+                recons = np.matmul(np.matmul(inverse,components),X_train.T).T
+                error_distance = np.square(X_train-recons)
+                mean_error = np.nanmean(error_distance)
+                df.at[component, 'seed'+str(seed)] = mean_error
+
+    sparse_df['average_error'] = sparse_df.mean(axis=1)
+    gaussian_df['average_error'] = gaussian_df.mean(axis=1)
+    plot = sparse_df.plot(y='average_error', ylabel="Average Reconstruction Error", xlabel="Number of Components", title="Reconstruction Error over Components" )
+    plt.axhline(y=0.1, color='r', linestyle='-')
+    plt.text(0.5, 0.85, str(0.1) + ' cut-off threshold', color='red', fontsize=16)
+    fig = plot.get_figure()
+    fig.savefig(run_type+"_RP_sparse_components.png")
+    plt.clf()
+    plot = gaussian_df.plot(y='average_error', ylabel="Average Reconstruction Error",
+                          xlabel="Number of Components", title="Reconstruction Error over Components")
+    plt.axhline(y=0.1, color='r', linestyle='-')
+    plt.text(0.5, 0.85, str(0.1) + ' cut-off threshold', color='red', fontsize=16)
+    fig = plot.get_figure()
+    fig.savefig(run_type+"_RP_gaussian_components.png")
+    plt.clf()
+    #TODO return the actual n_components that meets the reconstruction error threshold
+
+
 def compare_labelings(dr_type, run_type, X_train, y_train):
     algs = ['kmeans', 'em']
     true_labels = y_train.to_numpy()
@@ -280,16 +330,16 @@ def compare_labelings(dr_type, run_type, X_train, y_train):
                 # viz.show(outpath=run_type + "_kmeans_" + dr_type + "_interclusterdistance.png")
 
 
-
 def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
-    print("Running PCA")
+    #print("Running PCA")
     # pca_determine_components(run_type, explained_variance, X_train)
-    compare_labelings('PCA', run_type, X_train, y_train)
+    #compare_labelings('PCA', run_type, X_train, y_train)
     #print("Running ICA")
     #ica_determine_components(run_type, X_train, y_train)
     #compare_labelings('ICA', run_type, X_train, y_train)
-    #print("Running RP")
-    #run_RP()
+    print("Running RP")
+    rp_determine_components(run_type, X_train, y_train)
+    compare_labelings('RP', run_type, X_train, y_train)
     #print("Running LDA")
     #run_LDA()
 
@@ -301,9 +351,9 @@ def run_dim_reduction(dataroot):
     run_type, X_train, y_train = get_data_shoppers(dataroot, smote)
     dimensionality_reduction(run_type, explained_variance, X_train, y_train)
     print("\n----------------------------------\n")
-    print("Running dimensionality reduction on FAD dataset")
-    run_type, X_train, y_train = get_data_ford(dataroot, training_sample)
-    dimensionality_reduction(run_type, explained_variance, X_train, y_train)
+    #print("Running dimensionality reduction on FAD dataset")
+    #run_type, X_train, y_train = get_data_ford(dataroot, training_sample)
+    #dimensionality_reduction(run_type, explained_variance, X_train, y_train)
 
 
 
