@@ -6,6 +6,7 @@ from sklearn.decomposition import FastICA, PCA
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from numpy import mean
+from sklearn.random_projection import GaussianRandomProjection
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 matplotlib.use("TkAgg")
@@ -84,19 +85,36 @@ def run_clustering_algs(run_type, k_clusters, metrics, X):
         'kmeans',
          'em'
     ]
-    DRs  = [
+    DRs = [
         'PCA',
-        'ICA'
+        'ICA',
+        'RP',
+        'RFC'
     ]
     for dr in DRs:
         print("Executing silhouette analysis on " + dr)
         if dr == 'PCA':
             n = 14 if run_type == 'OSI' else 12
-            X = PCA(n_components=n).fit_transform(X)
-        else:
+            new_X = PCA(n_components=n, random_state=RANDOM_STATE).fit_transform(X)
+        elif dr == 'ICA':
             n = 26 if run_type == 'OSI' else 29
-            X = FastICA(n_components=n).fit_transform(X)
+            new_X = FastICA(n_components=n, random_state=RANDOM_STATE).fit_transform(X)
+        elif dr == 'RP':
+            n = 6 if run_type == 'OSI' else 12
+            new_X = GaussianRandomProjection(n_components=n, random_state=RANDOM_STATE).fit_transform(X)
         for alg in clustering_algs:
+            if dr == 'RFC':
+                if alg == 'kmeans':
+                    if run_type == 'OSI':
+                        new_X = X[[23]]
+                    else:
+                        new_X = X[[29, 17, 5, 19, 14, 13, 15, 16]]
+                else:
+                    if run_type == 'OSI':
+                        new_X = X[[23, 22]]
+                    else:
+                        new_X = X[[29, 17, 5, 19, 14, 13, 15, 16, 6, 4, 24, 12, 0, 22, 28]]
+
             print("**************************")
             print("Running "+alg)
             df = pd.DataFrame(index=k_clusters, columns=metrics)
@@ -120,18 +138,18 @@ def run_clustering_algs(run_type, k_clusters, metrics, X):
                         clusterer = KMeans(n_clusters=k, random_state=RANDOM_STATE)
                     else:
                         clusterer = GaussianMixture(n_components=k, random_state=RANDOM_STATE)
-                    cluster_labels = clusterer.fit_predict(X)
+                    cluster_labels = clusterer.fit_predict(new_X)
 
                     # The silhouette_score gives the average value for all the samples.
                     # This gives a perspective into the density and separation of the formed
                     # clusters
-                    silhouette_avg = silhouette_score(X, cluster_labels, metric=metric)
+                    silhouette_avg = silhouette_score(new_X, cluster_labels, metric=metric)
                     # print("For n_clusters =", k,
                     #       "The average silhouette_score is :", silhouette_avg)
 
                     df.at[k, metric] = silhouette_avg
                     # Compute the silhouette scores for each sample
-                    sample_silhouette_values = silhouette_samples(X, cluster_labels)
+                    sample_silhouette_values = silhouette_samples(new_X, cluster_labels)
 
                     y_lower = 10
                     for i in range(k):
