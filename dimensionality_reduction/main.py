@@ -15,7 +15,8 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from sklearn import tree as dt
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score, v_measure_score, homogeneity_completeness_v_measure
+from sklearn.metrics import accuracy_score, f1_score, v_measure_score, homogeneity_completeness_v_measure, rand_score, \
+    adjusted_rand_score, adjusted_mutual_info_score, homogeneity_score, completeness_score, fowlkes_mallows_score
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import RobustScaler
 from sklearn.compose import make_column_transformer
@@ -29,7 +30,7 @@ from sklearn.pipeline import Pipeline as sklearnPipeline
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.model_selection import learning_curve
-from sklearn.ensemble import AdaBoostClassifier
+from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from collections import Counter
 from sklearn import preprocessing
 from sklearn.metrics import average_precision_score
@@ -134,7 +135,7 @@ def run_clustering_algs(run_type, k_clusters, metrics, X):
 
 
 
-def get_data_shoppers(dataroot, smote):
+def get_data_shoppers(dataroot, smote, is_rfc):
     run_type = 'OSI'
     datapath = dataroot + 'online_shoppers_intention.csv'
     df = pd.read_csv(datapath)
@@ -151,7 +152,10 @@ def get_data_shoppers(dataroot, smote):
         # remainder='passthrough'
     )
     clean_attrs = column_trans.fit_transform(attributes)
-
+    num_features = len(clean_attrs[0])
+    print("OSI has "+str(num_features)+" features after preprocessing")
+    if is_rfc:
+        clean_attrs = pd.DataFrame(clean_attrs, columns=range(0, num_features))
     # X_train, X_test, y_train, y_test = train_test_split(clean_attrs, target, stratify=target, test_size=0.3,
     #                                                     random_state=RANDOM_STATE)
     # is_smote = smote[0]
@@ -160,9 +164,9 @@ def get_data_shoppers(dataroot, smote):
     #     imbPipeline = get_smote_pipeline(smote)
     #     X_train, y_train = imbPipeline.fit_resample(X_train, y_train)
     #     print("Smote resampling complete, Counter after: "+str(Counter(y_train)))
-    return run_type, clean_attrs, target
+    return run_type, clean_attrs, target, num_features
 
-def get_data_ford(dataroot, dataset_sample):
+def get_data_ford(dataroot, dataset_sample, is_rfc):
     run_type = 'FAD'
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
     y_train = df_train['IsAlert']
@@ -175,7 +179,11 @@ def get_data_ford(dataroot, dataset_sample):
     print("Scaling data to range 0 -> 1")
     scaler = MinMaxScaler()
     X_train_rescaled = scaler.fit_transform(X_train)
-    return run_type, X_train_rescaled, y_train
+    num_features = len(X_train_rescaled[0])
+    print("FAD has " + str(num_features) + " features after preprocessing")
+    if is_rfc:
+        X_train_rescaled = pd.DataFrame(X_train_rescaled, columns=range(0, num_features))
+    return run_type, X_train_rescaled, y_train, num_features
 
 def run_clustering(dataroot):
     smote = (False, 0.6)
@@ -183,11 +191,11 @@ def run_clustering(dataroot):
     k_clusters = (2,25)
     metrics = ['distortion', 'silhouette', 'calinski_harabasz']
     print("Running clustering on OCI dataset")
-    run_type, X_train, y_train = get_data_shoppers(dataroot, smote)
+    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote)
     run_clustering_algs(run_type, k_clusters, metrics, X_train)
     print("\n----------------------------------\n")
     print("Running clustering on FAD dataset")
-    run_type, X_train, y_train = get_data_ford(dataroot, training_sample)
+    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample)
     run_clustering_algs(run_type, k_clusters, metrics, X_train)
 
 def pca_determine_components(run_type, explained_variance, X_train):
@@ -282,78 +290,150 @@ def rp_determine_components(run_type, X_train, y_train):
     fig = plot.get_figure()
     fig.savefig(run_type+"_RP_gaussian_components.png")
     plt.clf()
-    #TODO return the actual n_components that meets the reconstruction error threshold
-
 
 def compare_labelings(dr_type, run_type, X_train, y_train):
     algs = ['kmeans', 'em']
+    scoring_methods = ['adj_rand_index', 'adj_mutual_info', 'homogeneity', 'completeness', 'v_measure', 'FM']
     true_labels = y_train.to_numpy()
     kmeans = KMeans(n_clusters=2, random_state=RANDOM_STATE)
     em = GaussianMixture(n_components=2, random_state=RANDOM_STATE)
+    scoring_df = pd.DataFrame()
     for alg in algs:
         if dr_type == 'PCA':
             n = 14 if run_type == 'OSI' else 12
-            pca_trans_data = PCA(n_components=n).fit_transform(X_train)
+            pca_trans_data = PCA(n_components=n, random_state=RANDOM_STATE).fit_transform(X_train)
             if alg == 'kmeans':
                 print("Testing PCA on "+alg)
-                non_pca_labels = kmeans.fit_predict(X_train)
-                pca_labels = kmeans.fit_predict(pca_trans_data)
+                non_dr_labels = kmeans.fit_predict(X_train)
+                dr_labels = kmeans.fit_predict(pca_trans_data)
             else:
                 print("Testing PCA on " + alg)
-                non_pca_labels = em.fit_predict(X_train)
-                pca_labels = em.fit_predict(pca_trans_data)
-            print(homogeneity_completeness_v_measure(non_pca_labels, true_labels))
-            print(homogeneity_completeness_v_measure(pca_labels, true_labels))
+                non_dr_labels = em.fit_predict(X_train)
+                dr_labels = em.fit_predict(pca_trans_data)
         if dr_type == 'ICA':
             n = 26 if run_type == 'OSI' else 29
-            ica_trans_data = FastICA(n_components=n).fit_transform(X_train)
+            ica_trans_data = FastICA(n_components=n, random_state=RANDOM_STATE).fit_transform(X_train)
             if alg == 'kmeans':
                 print("Testing ICA on " + alg)
-                non_ica_labels = kmeans.fit_predict(X_train)
-                ica_labels = kmeans.fit_predict(ica_trans_data)
+                non_dr_labels = kmeans.fit_predict(X_train)
+                dr_labels = kmeans.fit_predict(ica_trans_data)
             else:
                 print("Testing ICA on " + alg)
-                non_ica_labels = em.fit_predict(X_train)
-                ica_labels = em.fit_predict(ica_trans_data)
-            print(homogeneity_completeness_v_measure(non_ica_labels, true_labels))
-            print(homogeneity_completeness_v_measure(ica_labels, true_labels))
+                non_dr_labels = em.fit_predict(X_train)
+                dr_labels = em.fit_predict(ica_trans_data)
+        if dr_type == 'RP':
+            n = 6 if run_type == 'OSI' else 12
+            rp_trans_data = GaussianRandomProjection(n_components=n, random_state=RANDOM_STATE).fit_transform(X_train)
+            if alg == 'kmeans':
+                print("Testing RP on " + alg)
+                non_dr_labels = kmeans.fit_predict(X_train)
+                dr_labels = kmeans.fit_predict(rp_trans_data)
+            else:
+                print("Testing RP on " + alg)
+                non_dr_labels = em.fit_predict(X_train)
+                dr_labels = em.fit_predict(rp_trans_data)
+        if dr_type == 'RFC':
+            pass
+        else:
+            pass
 
-                # viz = InterclusterDistance(kmeans)
-                # viz.fit(X_train)
-                # viz.finalize()
-                # viz.show(outpath=run_type + "_kmeans_no_PCA_interclusterdistance.png")
-                # plt.clf()
-                #
-                # viz = InterclusterDistance(PCA_kmeans)
-                # viz.fit(pca_trans_data)
-                # viz.finalize()
-                # viz.show(outpath=run_type + "_kmeans_" + dr_type + "_interclusterdistance.png")
+
+        for i, scoring in enumerate(scoring_methods):
+            if scoring == 'adj_rand_index':
+                no_DR = adjusted_rand_score(true_labels, non_dr_labels)
+                DR = adjusted_rand_score(true_labels,dr_labels)
+            elif scoring == 'adj_mutual_info':
+                no_DR = adjusted_mutual_info_score(true_labels, non_dr_labels)
+                DR = adjusted_mutual_info_score(true_labels,dr_labels)
+            elif scoring == 'homogeneity':
+                no_DR = homogeneity_score(true_labels, non_dr_labels)
+                DR = homogeneity_score(true_labels,dr_labels)
+            elif scoring == 'completeness':
+                no_DR = completeness_score(true_labels, non_dr_labels)
+                DR = completeness_score(true_labels, dr_labels)
+            elif scoring == 'v_measure':
+                no_DR = v_measure_score(true_labels, non_dr_labels)
+                DR = v_measure_score(true_labels, dr_labels)
+            elif scoring == 'FM':
+                no_DR = fowlkes_mallows_score(true_labels, non_dr_labels)
+                DR = fowlkes_mallows_score(true_labels, dr_labels)
 
 
-def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
+            scoring_df.at[scoring, alg+'_no_DR'] = no_DR
+            scoring_df.at[scoring, alg+'_DR'] = DR
+            # print(run_type + " " + scoring + " for " + alg + " with no DR: " + str(no_DR))
+            # print(run_type + " " + scoring + " for " + alg + " using " + dr_type + ": " + str(DR))
+    print(scoring_df)
+    plot = scoring_df.plot(kind='bar', rot=0, ylabel="Score", title=run_type+" "+dr_type+" Scoring")
+    fig = plot.get_figure()
+    fig.savefig(run_type+"_"+dr_type+"_scoring_bar_chart.png")
+    plt.clf()
+def rfc_determine_components(run_type, X_train, y_train, num_features):
+    model = RandomForestClassifier(n_estimators=100,class_weight='balanced',random_state=RANDOM_STATE,n_jobs=-2)
+    model.fit(X_train, y_train)
+    sorted_features = model.feature_importances_.argsort()
+    best_features_first = sorted_features[::-1]
+    algs = [
+        'kmeans',
+        'em'
+    ]
+    from sklearn import metrics
+    clustering_metrics = {
+        'homo': metrics.homogeneity_score,
+        'compl': metrics.completeness_score,
+        'v-meas': metrics.v_measure_score,
+        'RI': metrics.rand_score,
+        'AMI': metrics.adjusted_mutual_info_score,
+    }
+    scoring_df = pd.DataFrame()
+    for alg in algs:
+        print("Running "+alg)
+        for k in range(1, num_features):
+            select_k_features = best_features_first[:k].tolist()
+            X_new = X_train[select_k_features]
+            if alg == 'kmeans':
+                labels_pred = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit_predict(X_new)
+            if alg == 'em':
+                labels_pred = GaussianMixture(n_components=2, random_state=RANDOM_STATE).fit_predict(X_new)
+            for scoring, m in clustering_metrics.items():
+                score = m(y_train, labels_pred)
+                scoring_df.at[k, scoring] = score
+        best_features_df = scoring_df.idxmax().to_frame().T
+        best_feature_length = best_features_df.mode(axis=1).at[0, 0]
+        best_features = best_features_first[:best_feature_length]
+        print(run_type+" "+alg+" best feature length: "+str(best_feature_length))
+        print(run_type + " " + alg + " best features: " + str(best_features))
+        print(run_type + " " + alg + " scores for best features: ")
+        print(scoring_df.iloc[best_feature_length])
+
+
+
+def dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features):
     #print("Running PCA")
     # pca_determine_components(run_type, explained_variance, X_train)
     #compare_labelings('PCA', run_type, X_train, y_train)
     #print("Running ICA")
     #ica_determine_components(run_type, X_train, y_train)
     #compare_labelings('ICA', run_type, X_train, y_train)
-    print("Running RP")
-    rp_determine_components(run_type, X_train, y_train)
-    compare_labelings('RP', run_type, X_train, y_train)
-    #print("Running LDA")
-    #run_LDA()
+    #print("Running RP")
+    #rp_determine_components(run_type, X_train, y_train)
+    #compare_labelings('RP', run_type, X_train, y_train)
+    print("Running RFC")
+    rfc_determine_components(run_type, X_train, y_train, num_features)
+    #compare_labelings('RFC', run_type, X_train, y_train)
 
 def run_dim_reduction(dataroot):
     smote = (False, 0.6)
-    training_sample = 0
+    is_rfc = True
+    training_sample = 0.3
     explained_variance = 0.95
     print("Running dimensionality reduction on OCI dataset")
-    run_type, X_train, y_train = get_data_shoppers(dataroot, smote)
-    dimensionality_reduction(run_type, explained_variance, X_train, y_train)
+    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features)
     print("\n----------------------------------\n")
-    #print("Running dimensionality reduction on FAD dataset")
-    #run_type, X_train, y_train = get_data_ford(dataroot, training_sample)
-    #dimensionality_reduction(run_type, explained_variance, X_train, y_train)
+    print("Running dimensionality reduction on FAD dataset")
+    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features)
 
 
 

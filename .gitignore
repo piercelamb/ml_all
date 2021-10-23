@@ -6,5 +6,6 @@
 */*.png
 */figures/*
 */metrics/*
+*/bar_chart/*
 */*.pdf
 */*.html
