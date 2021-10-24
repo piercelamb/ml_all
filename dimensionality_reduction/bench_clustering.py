@@ -171,6 +171,38 @@ def get_data_shoppers(dataroot, smote, scaler):
     #     X_train, y_train = imbPipeline.fit_resample(X_train, y_train)
     #     print("Smote resampling complete, Counter after: "+str(Counter(y_train)))
     return run_type, clean_attrs, target
+
+def drop_correlated_columns(X_train):
+    # correlation = X_train.corr().abs()
+    # get_graph = c.unstack()
+    # final = get_graph.order(kind="quicksort", na_last=False)[::-1]
+    X_train = X_train.drop(['P4', 'V6', 'V10', 'E9', 'E2'], axis=1)
+    return X_train
+
+def scale_variant_columns(X_train):
+
+    X_train.loc[X_train['E7'] > 4, 'E7'] = 4
+    X_train.loc[X_train['E8'] > 4, 'E8'] = 4
+
+    return X_train
+
+def scale_continuous_data(X_train):
+    categorical = ['E3', 'E7', 'E8', 'V5']
+    numerical = [x for x in X_train.columns if x not in categorical]
+    scaler = preprocessing.RobustScaler().fit(
+        X_train.loc[:, numerical])
+    X_train.loc[:, numerical] = scaler.transform(
+        X_train.loc[:, numerical])
+
+    return X_train
+
+def preprocess_ford_data(X_train):
+    X_train = drop_correlated_columns(X_train)
+    X_train = scale_variant_columns(X_train)
+    X_train = scale_continuous_data(X_train)
+
+    return X_train
+
 import warnings
 warnings.filterwarnings("ignore")
 def get_data_ford(dataroot, dataset_sample, scaler):
@@ -184,11 +216,13 @@ def get_data_ford(dataroot, dataset_sample, scaler):
                                                                     random_state=RANDOM_STATE)
     print("Sampled number of instances: " + str(len(X_train.index)))
     print("Scaling data to range 0 -> 1")
-    scaler = MaxAbsScaler()
-    X_train = scaler.fit_transform(X_train)
-    num_features = len(X_train[0])
+    # scaler = MaxAbsScaler()
+    # X_train = scaler.fit_transform(X_train)
+    X_train = scale_continuous_data(X_train)
+    num_features = len(X_train.columns)
     print("FAD has " + str(num_features) + " features after preprocessing")
-    X_train = pd.DataFrame(X_train, columns=range(0, num_features))
+    X_train = X_train.set_axis(range(0, num_features), axis=1)
+
     return run_type, X_train, y_train
 
 # def run_clustering(dataroot):
@@ -256,19 +290,7 @@ def bench_k_means(alg, name, data, labels, df):
     print(formatter_result.format(*results))
 
 
-def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
-    #print("Running PCA")
-    # pca_determine_components(run_type, explained_variance, X_train)
-    #compare_labelings('PCA', run_type, X_train, y_train)
-    #print("Running ICA")
-    #ica_determine_components(run_type, X_train, y_train)
-    #compare_labelings('ICA', run_type, X_train, y_train)
-    #print("Running RP")
-    #rp_determine_components(run_type, X_train, y_train)
-    #compare_labelings('RP', run_type, X_train, y_train)
-    #print("Running RFC")
-    #rfc_determine_components(run_type, X_train, y_train)
-    #compare_labelings('RFC', run_type, X_train, y_train)
+def dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_clusters, num_components):
     algs = {
         'kmeans': KMeans(random_state=RANDOM_STATE),
         'em': GaussianMixture(random_state=RANDOM_STATE)
@@ -277,22 +299,22 @@ def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
         scoring_df = pd.DataFrame(columns=['homo','compl','v-meas','RI','AMI'])
         print(82 * '_')
         print('run\t\ttime\thomo\tcompl\tv-meas\tRI\tAMI')
-        alg.set_params(n_clusters=2) if alg_name == 'kmeans' else alg.set_params(n_components=2)
+        alg.set_params(n_clusters=num_clusters) if alg_name == 'kmeans' else alg.set_params(n_components=num_components)
         bench_k_means(alg=alg, name=alg_name, data=X_train, labels=y_train, df=scoring_df)
 
         n = 14 if run_type == 'OSI' else 12
         pca_trans = PCA(n_components=n, random_state=RANDOM_STATE).fit_transform(X_train)
-        alg.set_params(n_clusters=2) if alg_name == 'kmeans' else alg.set_params(n_components=2)
+        alg.set_params(n_clusters=num_clusters) if alg_name == 'kmeans' else alg.set_params(n_components=num_components)
         bench_k_means(alg=alg, name="PCA", data=pca_trans, labels=y_train, df=scoring_df)
 
         n = 26 if run_type == 'OSI' else 29
         ica_trans = FastICA(n_components=n, random_state=RANDOM_STATE).fit_transform(X_train)
-        alg.set_params(n_clusters=2) if alg_name == 'kmeans' else alg.set_params(n_components=2)
+        alg.set_params(n_clusters=num_clusters) if alg_name == 'kmeans' else alg.set_params(n_components=num_components)
         bench_k_means(alg=alg, name="ICA", data=ica_trans, labels=y_train, df=scoring_df)
 
-        n = 6 if run_type == 'OSI' else 12
+        n = 23 if run_type == 'OSI' else 18
         rp_trans = GaussianRandomProjection(n_components=n, random_state=RANDOM_STATE).fit_transform(X_train)
-        alg.set_params(n_clusters=2) if alg_name == 'kmeans' else alg.set_params(n_components=2)
+        alg.set_params(n_clusters=num_clusters) if alg_name == 'kmeans' else alg.set_params(n_components=num_components)
         bench_k_means(alg=alg, name="RP", data=rp_trans, labels=y_train, df=scoring_df)
 
         if alg == 'kmeans':
@@ -305,7 +327,7 @@ def dimensionality_reduction(run_type, explained_variance, X_train, y_train):
                 X_new = X_train[[23, 22]]
             else:
                 X_new = X_train[[29, 17, 5, 19, 14, 13, 15, 16, 6, 4, 24, 12, 0, 22, 28]]
-        alg.set_params(n_clusters=2) if alg_name == 'kmeans' else alg.set_params(n_components=2)
+        alg.set_params(n_clusters=num_clusters) if alg_name == 'kmeans' else alg.set_params(n_components=num_components)
         bench_k_means(alg=alg, name="RFC", data=X_new, labels=y_train, df=scoring_df)
 
         print(82 * '_')
@@ -319,13 +341,15 @@ def run_dim_reduction(dataroot):
     smote = (False, 0.6)
     training_sample = 0.3
     explained_variance = 0.95
+    num_clusters = 2
+    n_components = 2
     print("Running dimensionality reduction on OCI dataset")
     run_type, X_train, y_train = get_data_shoppers(dataroot, smote, scaler)
-    dimensionality_reduction(run_type, explained_variance, X_train, y_train)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_clusters, n_components)
     print("\n----------------------------------\n")
-    print("Running dimensionality reduction on FAD dataset")
+    print("Running dimensionality reduction on FAD dataset with num clusters: "+str(num_clusters))
     run_type, X_train, y_train = get_data_ford(dataroot, training_sample, scaler)
-    dimensionality_reduction(run_type, explained_variance, X_train, y_train)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_clusters, n_components)
 
 
 

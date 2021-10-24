@@ -247,6 +247,7 @@ def run_clustering_shoppers(dataroot, k_clusters, metrics, smote):
 
     run_clustering_algs(run_type, k_clusters, metrics, clean_attrs)
 
+
 def run_clustering_ford(dataroot, k_clusters, metrics, dataset_sample):
     run_type = 'FAD'
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')

@@ -166,6 +166,16 @@ def get_data_shoppers(dataroot, smote, is_rfc):
     #     print("Smote resampling complete, Counter after: "+str(Counter(y_train)))
     return run_type, clean_attrs, target, num_features
 
+def scale_continuous_data(X_train):
+    categorical = ['E3', 'E7', 'E8', 'V5']
+    numerical = [x for x in X_train.columns if x not in categorical]
+    scaler = preprocessing.RobustScaler().fit(
+        X_train.loc[:, numerical])
+    X_train.loc[:, numerical] = scaler.transform(
+        X_train.loc[:, numerical])
+
+    return X_train
+
 def get_data_ford(dataroot, dataset_sample, is_rfc):
     run_type = 'FAD'
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
@@ -177,12 +187,11 @@ def get_data_ford(dataroot, dataset_sample, is_rfc):
                                                                     random_state=RANDOM_STATE)
     print("Sampled number of instances: " + str(len(X_train.index)))
     print("Scaling data to range 0 -> 1")
-    scaler = MinMaxScaler()
-    X_train_rescaled = scaler.fit_transform(X_train)
-    num_features = len(X_train_rescaled[0])
+    X_train_rescaled = scale_continuous_data(X_train)
+    num_features = len(X_train.columns)
     print("FAD has " + str(num_features) + " features after preprocessing")
     if is_rfc:
-        X_train_rescaled = pd.DataFrame(X_train_rescaled, columns=range(0, num_features))
+        X_train_rescaled = X_train.set_axis(range(0, num_features), axis=1)
     return run_type, X_train_rescaled, y_train, num_features
 
 def run_clustering(dataroot):
@@ -198,7 +207,7 @@ def run_clustering(dataroot):
     run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample)
     run_clustering_algs(run_type, k_clusters, metrics, X_train)
 
-def pca_determine_components(run_type, explained_variance, X_train):
+def pca_determine_components(run_type, explained_variance, X_train, num_clusters, num_components):
     pca = PCA().fit(X_train)
 
     fig, ax = plt.subplots()
@@ -222,7 +231,7 @@ def pca_determine_components(run_type, explained_variance, X_train):
     plt.clf()
     exit(1)
 
-def ica_determine_components(run_type, X_train, y_train):
+def ica_determine_components(run_type, X_train, y_train, num_clusters, num_components):
     n_components_list = range (1, 31)
     fastICA = FastICA(random_state=RANDOM_STATE)
     kurtosis = {}
@@ -247,7 +256,7 @@ def ica_determine_components(run_type, X_train, y_train):
     fig.savefig(run_type+"_ICA_kurtosis_components.png")
     plt.clf()
 
-def rp_determine_components(run_type, X_train, y_train):
+def rp_determine_components(run_type, X_train, y_train, num_clusters, num_components):
     n_components = range(2, 30)
     seeds = range(1,11)
 
@@ -368,11 +377,13 @@ def compare_labelings(dr_type, run_type, X_train, y_train):
     fig = plot.get_figure()
     fig.savefig(run_type+"_"+dr_type+"_scoring_bar_chart.png")
     plt.clf()
-def rfc_determine_components(run_type, X_train, y_train, num_features):
+def rfc_determine_components(run_type, X_train, y_train, num_features, num_clusters, num_components):
+
     model = RandomForestClassifier(n_estimators=100,class_weight='balanced',random_state=RANDOM_STATE,n_jobs=-2)
     model.fit(X_train, y_train)
     sorted_features = model.feature_importances_.argsort()
     best_features_first = sorted_features[::-1]
+    print(best_features_first)
     algs = [
         'kmeans',
         'em'
@@ -392,12 +403,17 @@ def rfc_determine_components(run_type, X_train, y_train, num_features):
             select_k_features = best_features_first[:k].tolist()
             X_new = X_train[select_k_features]
             if alg == 'kmeans':
-                labels_pred = KMeans(n_clusters=2, random_state=RANDOM_STATE).fit_predict(X_new)
+                labels_pred = KMeans(n_clusters=num_clusters, random_state=RANDOM_STATE).fit_predict(X_new)
             if alg == 'em':
-                labels_pred = GaussianMixture(n_components=2, random_state=RANDOM_STATE).fit_predict(X_new)
+                labels_pred = GaussianMixture(n_components=num_components, random_state=RANDOM_STATE).fit_predict(X_new)
             for scoring, m in clustering_metrics.items():
                 score = m(y_train, labels_pred)
                 scoring_df.at[k, scoring] = score
+
+        plot = scoring_df.plot(kind='bar', rot=0, ylabel="Score", xlabel="Top K features", title=run_type + " " + alg + " RFC Feature Selection")
+        fig = plot.get_figure()
+        fig.savefig('bar_chart/' + run_type + "_" + alg + "_rfc_feature_selection.png")
+        plt.clf()
         best_features_df = scoring_df.idxmax().to_frame().T
         best_feature_length = best_features_df.mode(axis=1).at[0, 0]
         best_features = best_features_first[:best_feature_length]
@@ -408,18 +424,18 @@ def rfc_determine_components(run_type, X_train, y_train, num_features):
 
 
 
-def dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features):
+def dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features, num_clusters, num_components):
     #print("Running PCA")
-    # pca_determine_components(run_type, explained_variance, X_train)
+    #pca_determine_components(run_type, explained_variance, X_train, num_clusters, num_components)
     #compare_labelings('PCA', run_type, X_train, y_train)
     #print("Running ICA")
-    #ica_determine_components(run_type, X_train, y_train)
+    #ica_determine_components(run_type, X_train, y_train, num_clusters, num_components)
     #compare_labelings('ICA', run_type, X_train, y_train)
     #print("Running RP")
-    #rp_determine_components(run_type, X_train, y_train)
+    #rp_determine_components(run_type, X_train, y_train, num_clusters, num_components)
     #compare_labelings('RP', run_type, X_train, y_train)
     print("Running RFC")
-    rfc_determine_components(run_type, X_train, y_train, num_features)
+    rfc_determine_components(run_type, X_train, y_train, num_features, num_clusters, num_components)
     #compare_labelings('RFC', run_type, X_train, y_train)
 
 def run_dim_reduction(dataroot):
@@ -427,14 +443,25 @@ def run_dim_reduction(dataroot):
     is_rfc = True
     training_sample = 0.3
     explained_variance = 0.95
+    num_clusters = 2
+    num_components = 2
     print("Running dimensionality reduction on OCI dataset")
     run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc)
-    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features, num_clusters, num_components)
     print("\n----------------------------------\n")
     print("Running dimensionality reduction on FAD dataset")
     run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc)
-    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features)
+    dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features, num_clusters, num_components)
 
+def run_nn_DR(dataroot):
+    smote = (False, 0.6)
+    training_sample = 0.3
+    print("Running dimensionality reduction on OCI dataset")
+    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc)
+
+    print("\n----------------------------------\n")
+    print("Running dimensionality reduction on FAD dataset")
+    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc)
 
 
 if __name__ == "__main__":
