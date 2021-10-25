@@ -249,10 +249,10 @@ def run_and_apply_clustering(run_type, X_train, y_train, X_test, y_test, cv):
     }
 
     nn_args = {
-        'PCA': {'hidden_layer_sizes':[(100,200,400)], 'activation':['tanh']}
-        # 'ICA':
-        # 'RP':
-        # 'RFC':
+        'PCA': {'hidden_layer_sizes':[(100,200,400)], 'activation':['tanh']},
+        'ICA': {'hidden_layer_sizes':[(100,200,400)], 'activation':['tanh']},
+        'RP': {'hidden_layer_sizes':[(100,200,400)], 'activation':['tanh']},
+        'RFC':{'hidden_layer_sizes':[(100,200,400)], 'activation':['tanh']}
     }
 
     for alg_name, alg in DR_algs.items():
@@ -287,7 +287,7 @@ def run_and_apply_clustering(run_type, X_train, y_train, X_test, y_test, cv):
 
             final_plots(run_type, best_nn, 'NN_'+cluster_alg, cv, scoring, X_Train_new, y_train, X_test_new, y_test, y_pred,
                         alg_name, is_iterative)
-            exit(1)
+
 
 
 
