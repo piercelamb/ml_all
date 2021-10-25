@@ -237,10 +237,14 @@ def run_and_apply_clustering(run_type, X_train, y_train, X_test, y_test, cv):
     scoring = 'accuracy'
     smote = False
     is_iterative = True
+    pca_n = 12
+    ica_n = 29
+    RP_n = 18
+    RFC_n = 6
     DR_algs = {
-        'PCA': PCA(n_components=12, random_state=RANDOM_STATE),
-        'ICA': FastICA(n_components=29, random_state=RANDOM_STATE),
-        'RP': GaussianRandomProjection(n_components=18, random_state=RANDOM_STATE),
+        #'PCA': PCA(n_components=pca_n, random_state=RANDOM_STATE),
+        'ICA': FastICA(n_components=ica_n, random_state=RANDOM_STATE),
+        'RP': GaussianRandomProjection(n_components=RP_n, random_state=RANDOM_STATE),
         'RFC': [29, 17, 5, 16, 19, 13]
     }
     clustering_algs = {
@@ -258,19 +262,21 @@ def run_and_apply_clustering(run_type, X_train, y_train, X_test, y_test, cv):
     for alg_name, alg in DR_algs.items():
         print("Running " + alg_name)
         if alg_name != 'RFC':
+            n = ica_n if alg_name == 'ICA' else RP_n
             X_Train_new = alg.fit_transform(X_train)
             X_test_new = alg.fit_transform(X_test)
-            X_Train_new = pd.DataFrame(X_Train_new, columns=range(0, alg.n_components_))
-            X_test_new = pd.DataFrame(X_test_new, columns=range(0, alg.n_components_))
+            X_Train_new = pd.DataFrame(X_Train_new, columns=range(0, n))
+            X_test_new = pd.DataFrame(X_test_new, columns=range(0, n))
         else:
+            n = RFC_n
             X_Train_new = X_train[alg]
             X_test_new = X_test[alg]
         for cluster_alg, runner in clustering_algs.items():
             print("Running clusterer: "+cluster_alg)
             X_train_labels = runner.fit_predict(X_Train_new)
             X_test_labels = runner.fit_predict(X_test_new)
-            X_Train_new[alg.n_components_] = X_train_labels.tolist()
-            X_test_new[alg.n_components_] = X_test_labels.tolist()
+            X_Train_new[n] = X_train_labels.tolist()
+            X_test_new[n] = X_test_labels.tolist()
 
             print("Starting GridSearch")
             start = time.time()
