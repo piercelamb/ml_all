@@ -232,7 +232,64 @@ def run_DR(run_type, X_train, y_train, X_test, y_test, kwargs, cv):
         print(alg_name+" best params: "+str(best_params))
 
         final_plots(run_type, best_nn, 'NN', cv, scoring, X_Train_new, y_train, X_test_new, y_test, y_pred, alg_name, is_iterative)
-        
+
+def run_and_apply_clustering(run_type, X_train, y_train, X_test, y_test, cv):
+    scoring = 'accuracy'
+    smote = False
+    is_iterative = True
+    DR_algs = {
+        'PCA': PCA(n_components=12, random_state=RANDOM_STATE),
+        'ICA': FastICA(n_components=29, random_state=RANDOM_STATE),
+        'RP': GaussianRandomProjection(n_components=18, random_state=RANDOM_STATE),
+        'RFC': [29, 17, 5, 16, 19, 13]
+    }
+    clustering_algs = {
+        'kmeans': KMeans(n_clusters=2, random_state=RANDOM_STATE),
+        'em': GaussianMixture(n_components=2, random_state=RANDOM_STATE)
+    }
+
+    nn_args = {
+        'PCA': {'hidden_layer_sizes':[(100,200,400)], 'activation':['tanh']}
+        # 'ICA':
+        # 'RP':
+        # 'RFC':
+    }
+
+    for alg_name, alg in DR_algs.items():
+        print("Running " + alg_name)
+        if alg_name != 'RFC':
+            X_Train_new = alg.fit_transform(X_train)
+            X_test_new = alg.fit_transform(X_test)
+            X_Train_new = pd.DataFrame(X_Train_new, columns=range(0, alg.n_components_))
+            X_test_new = pd.DataFrame(X_test_new, columns=range(0, alg.n_components_))
+        else:
+            X_Train_new = X_train[alg]
+            X_test_new = X_test[alg]
+        for cluster_alg, runner in clustering_algs.items():
+            print("Running clusterer: "+cluster_alg)
+            X_train_labels = runner.fit_predict(X_Train_new)
+            X_test_labels = runner.fit_predict(X_test_new)
+            X_Train_new[alg.n_components_] = X_train_labels.tolist()
+            X_test_new[alg.n_components_] = X_test_labels.tolist()
+
+            print("Starting GridSearch")
+            start = time.time()
+            gs = GridSearchCV(MLPClassifier(), nn_args[alg_name], cv=cv, n_jobs=-2)
+            gs.fit(X_Train_new, y_train)
+            end = time.time()
+            print('%s execution time: %f secs' % (alg_name, end - start))
+            best_nn = gs.best_estimator_
+            best_score = gs.best_score_
+            best_params = gs.best_params_
+            y_pred = calc_testing(best_nn, X_Train_new, y_train, X_test_new)
+            print(alg_name + " best training score was: " + str(best_score))
+            print(alg_name + " best params: " + str(best_params))
+
+            final_plots(run_type, best_nn, 'NN_'+cluster_alg, cv, scoring, X_Train_new, y_train, X_test_new, y_test, y_pred,
+                        alg_name, is_iterative)
+            exit(1)
+
+
 
 def run_nn_DR(dataroot):
     smote = (False, 0.6)
@@ -246,9 +303,10 @@ def run_nn_DR(dataroot):
     }
     X_train, y_train, X_test, y_test, num_features = get_data_ford(dataroot, training_sample, is_rfc)
     #rfc_determine_components(run_type,  X_train, y_train, X_test, y_test, num_features)
-    print("Running dimensionality reduction on FAD dataset")
-    run_DR(run_type, X_train, y_train, X_test, y_test, kwargs, cv)
-    print("Applying reduced dataset to Neural Net")
+    #print("Running dimensionality reduction on FAD dataset")
+    #run_DR(run_type, X_train, y_train, X_test, y_test, kwargs, cv)
+    print("Running clustering and applying results as new features")
+    run_and_apply_clustering(run_type, X_train, y_train, X_test, y_test, cv)
 
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
