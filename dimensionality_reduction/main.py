@@ -135,58 +135,64 @@ def run_clustering_algs(run_type, k_clusters, metrics, X):
 
 
 
-def get_data_shoppers(dataroot, smote, is_rfc):
+def get_data_shoppers(dataroot, smote, is_rfc, drop_cat):
     run_type = 'OSI'
     datapath = dataroot + 'online_shoppers_intention.csv'
     df = pd.read_csv(datapath)
     target = df['Revenue'].astype(int)
     attributes = df.drop('Revenue', axis=1, )
-    string_columns = ['Month', 'VisitorType', 'Weekend']
-    numerical_columns = ['Administrative', 'Administrative_Duration', 'Informational',
-       'Informational_Duration', 'ProductRelated', 'ProductRelated_Duration',
-       'BounceRates', 'ExitRates', 'PageValues', 'SpecialDay',
-       'OperatingSystems', 'Browser', 'Region', 'TrafficType',]
-    column_trans = make_column_transformer(
-        (OneHotEncoder(handle_unknown='ignore'), string_columns),
-        (MinMaxScaler(), numerical_columns)
-        # remainder='passthrough'
-    )
-    clean_attrs = column_trans.fit_transform(attributes)
-    num_features = len(clean_attrs[0])
-    print("OSI has "+str(num_features)+" features after preprocessing")
+    categorial_columns = [
+        'Month', 'OperatingSystems', 'Browser','TrafficType','VisitorType','Weekend'
+    ]
+    if drop_cat == False:
+        string_columns = ['Month', 'VisitorType', 'Weekend']
+        numerical_columns = ['Administrative', 'Administrative_Duration', 'Informational',
+           'Informational_Duration', 'ProductRelated', 'ProductRelated_Duration',
+           'BounceRates', 'ExitRates', 'PageValues', 'SpecialDay',
+           'OperatingSystems', 'Browser', 'Region', 'TrafficType',]
+        column_trans = make_column_transformer(
+            (OneHotEncoder(handle_unknown='ignore'), string_columns),
+            (MinMaxScaler(), numerical_columns)
+            # remainder='passthrough'
+        )
+        clean_attrs = column_trans.fit_transform(attributes)
+        num_features = len(clean_attrs[0])
+        print("OSI has "+str(num_features)+" features after preprocessing")
+    else:
+        print("Dropping categorical columns")
+        attributes.drop(categorial_columns, axis=1, inplace=True)
+        scaler = StandardScaler()
+        clean_attrs = scaler.fit_transform(attributes)
+        num_features = len(clean_attrs[0])
+        print("OSI has "+str(num_features)+" features after preprocessing")
+
     if is_rfc:
         clean_attrs = pd.DataFrame(clean_attrs, columns=range(0, num_features))
-    # X_train, X_test, y_train, y_test = train_test_split(clean_attrs, target, stratify=target, test_size=0.3,
-    #                                                     random_state=RANDOM_STATE)
-    # is_smote = smote[0]
-    # if is_smote:
-    #     print("Smote resampling initiated, Counter before: "+str(Counter(y_train)))
-    #     imbPipeline = get_smote_pipeline(smote)
-    #     X_train, y_train = imbPipeline.fit_resample(X_train, y_train)
-    #     print("Smote resampling complete, Counter after: "+str(Counter(y_train)))
+
     return run_type, clean_attrs, target, num_features
 
 def scale_continuous_data(X_train):
     categorical = ['E3', 'E7', 'E8', 'V5']
     numerical = [x for x in X_train.columns if x not in categorical]
-    scaler = preprocessing.RobustScaler().fit(
+    scaler = preprocessing.StandardScaler().fit(
         X_train.loc[:, numerical])
     X_train.loc[:, numerical] = scaler.transform(
         X_train.loc[:, numerical])
 
     return X_train
 
-def get_data_ford(dataroot, dataset_sample, is_rfc):
+def get_data_ford(dataroot, dataset_sample, is_rfc, drop_cat):
     run_type = 'FAD'
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
     y_train = df_train['IsAlert']
     X_train = df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
+    if drop_cat:
+        X_train.drop(['E3', 'E7', 'E8', 'V5'], axis=1, inplace=True)
     if dataset_sample != 0:
         print("Sampling the training set at: " + str(dataset_sample))
         X_train, X_test_new, y_train, y_test_new = train_test_split(X_train, y_train, train_size=dataset_sample,
                                                                     random_state=RANDOM_STATE)
     print("Sampled number of instances: " + str(len(X_train.index)))
-    print("Scaling data to range 0 -> 1")
     X_train_rescaled = scale_continuous_data(X_train)
     num_features = len(X_train.columns)
     print("FAD has " + str(num_features) + " features after preprocessing")
@@ -196,15 +202,17 @@ def get_data_ford(dataroot, dataset_sample, is_rfc):
 
 def run_clustering(dataroot):
     smote = (False, 0.6)
+    drop_cat = True
+    is_rfc = False
     training_sample = 0.3
     k_clusters = (2,25)
     metrics = ['distortion', 'silhouette', 'calinski_harabasz']
     print("Running clustering on OCI dataset")
-    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote)
+    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc, drop_cat)
     run_clustering_algs(run_type, k_clusters, metrics, X_train)
     print("\n----------------------------------\n")
     print("Running clustering on FAD dataset")
-    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample)
+    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc, drop_cat)
     run_clustering_algs(run_type, k_clusters, metrics, X_train)
 
 def pca_determine_components(run_type, explained_variance, X_train, num_clusters, num_components):
@@ -425,43 +433,46 @@ def rfc_determine_components(run_type, X_train, y_train, num_features, num_clust
 
 
 def dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features, num_clusters, num_components):
-    #print("Running PCA")
-    #pca_determine_components(run_type, explained_variance, X_train, num_clusters, num_components)
+    print("Running PCA")
+    pca_determine_components(run_type, explained_variance, X_train, num_clusters, num_components)
     #compare_labelings('PCA', run_type, X_train, y_train)
-    #print("Running ICA")
-    #ica_determine_components(run_type, X_train, y_train, num_clusters, num_components)
+    print("Running ICA")
+    ica_determine_components(run_type, X_train, y_train, num_clusters, num_components)
     #compare_labelings('ICA', run_type, X_train, y_train)
     #print("Running RP")
-    #rp_determine_components(run_type, X_train, y_train, num_clusters, num_components)
-    #compare_labelings('RP', run_type, X_train, y_train)
+    rp_determine_components(run_type, X_train, y_train, num_clusters, num_components)
+    compare_labelings('RP', run_type, X_train, y_train)
     print("Running RFC")
     rfc_determine_components(run_type, X_train, y_train, num_features, num_clusters, num_components)
     #compare_labelings('RFC', run_type, X_train, y_train)
 
 def run_dim_reduction(dataroot):
     smote = (False, 0.6)
-    is_rfc = True
+    is_rfc = False
+    drop_cat = True
     training_sample = 0.3
     explained_variance = 0.95
     num_clusters = 2
     num_components = 2
     print("Running dimensionality reduction on OCI dataset")
-    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc)
+    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc, drop_cat)
     dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features, num_clusters, num_components)
     print("\n----------------------------------\n")
     print("Running dimensionality reduction on FAD dataset")
-    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc)
+    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc, drop_cat)
     dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_features, num_clusters, num_components)
 
 def run_nn_DR(dataroot):
     smote = (False, 0.6)
+    is_rfc = False
+    drop_cat = True
     training_sample = 0.3
     print("Running dimensionality reduction on OCI dataset")
-    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc)
+    run_type, X_train, y_train, num_features = get_data_shoppers(dataroot, smote, is_rfc, drop_cat)
 
     print("\n----------------------------------\n")
     print("Running dimensionality reduction on FAD dataset")
-    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc)
+    run_type, X_train, y_train, num_features = get_data_ford(dataroot, training_sample, is_rfc, drop_cat)
 
 
 if __name__ == "__main__":

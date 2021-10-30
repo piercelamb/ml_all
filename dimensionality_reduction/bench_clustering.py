@@ -139,26 +139,37 @@ def run_clustering_algs(run_type, k_clusters, metrics, X):
 
 
 
-def get_data_shoppers(dataroot, smote, scaler):
+def get_data_shoppers(dataroot, smote, scaler, drop_cat):
     run_type = 'OSI'
     datapath = dataroot + 'online_shoppers_intention.csv'
     df = pd.read_csv(datapath)
     target = df['Revenue'].astype(int)
     attributes = df.drop('Revenue', axis=1, )
-    string_columns = ['Month', 'VisitorType', 'Weekend']
-    numerical_columns = ['Administrative', 'Administrative_Duration', 'Informational',
-       'Informational_Duration', 'ProductRelated', 'ProductRelated_Duration',
-       'BounceRates', 'ExitRates', 'PageValues', 'SpecialDay',
-       'OperatingSystems', 'Browser', 'Region', 'TrafficType',]
-    column_trans = make_column_transformer(
-        (OneHotEncoder(handle_unknown='ignore'), string_columns),
-        (RobustScaler(), numerical_columns)
-         #remainder='passthrough'
-    )
-    clean_attrs = column_trans.fit_transform(attributes)
-    num_features = len(clean_attrs[0])
-    print("OSI has " + str(num_features) + " features after preprocessing")
-    clean_attrs = pd.DataFrame(clean_attrs, columns=range(0, num_features))
+    categorial_columns = [
+        'Month', 'OperatingSystems', 'Browser', 'TrafficType', 'VisitorType', 'Weekend'
+    ]
+    if drop_cat == False:
+        string_columns = ['Month', 'VisitorType', 'Weekend']
+        numerical_columns = ['Administrative', 'Administrative_Duration', 'Informational',
+           'Informational_Duration', 'ProductRelated', 'ProductRelated_Duration',
+           'BounceRates', 'ExitRates', 'PageValues', 'SpecialDay',
+           'OperatingSystems', 'Browser', 'Region', 'TrafficType',]
+        column_trans = make_column_transformer(
+            (OneHotEncoder(handle_unknown='ignore'), string_columns),
+            (RobustScaler(), numerical_columns)
+             #remainder='passthrough'
+        )
+        clean_attrs = column_trans.fit_transform(attributes)
+        num_features = len(clean_attrs[0])
+        print("OSI has " + str(num_features) + " features after preprocessing")
+        clean_attrs = pd.DataFrame(clean_attrs, columns=range(0, num_features))
+    else:
+        print("Dropping categorical columns")
+        attributes.drop(categorial_columns, axis=1, inplace=True)
+        scaler = StandardScaler()
+        clean_attrs = scaler.fit_transform(attributes)
+        num_features = len(clean_attrs[0])
+        print("OSI has " + str(num_features) + " features after preprocessing")
     # scaler = RobustScaler()
     # clean_attrs = scaler.fit_transform(clean_attrs)
 
@@ -189,7 +200,7 @@ def scale_variant_columns(X_train):
 def scale_continuous_data(X_train):
     categorical = ['E3', 'E7', 'E8', 'V5']
     numerical = [x for x in X_train.columns if x not in categorical]
-    scaler = preprocessing.RobustScaler().fit(
+    scaler = preprocessing.StandardScaler().fit(
         X_train.loc[:, numerical])
     X_train.loc[:, numerical] = scaler.transform(
         X_train.loc[:, numerical])
@@ -205,11 +216,13 @@ def preprocess_ford_data(X_train):
 
 import warnings
 warnings.filterwarnings("ignore")
-def get_data_ford(dataroot, dataset_sample, scaler):
+def get_data_ford(dataroot, dataset_sample, scaler, drop_cat):
     run_type = 'FAD'
     df_train = pd.read_csv(dataroot + 'fordTrain.csv')
     y_train = df_train['IsAlert']
     X_train = df_train.drop(['IsAlert', 'TrialID', 'ObsNum'], axis=1)
+    if drop_cat:
+        X_train.drop(['E3', 'E7', 'E8', 'V5'], axis=1, inplace=True)
     if dataset_sample != 0:
         print("Sampling the training set at: " + str(dataset_sample))
         X_train, X_test_new, y_train, y_test_new = train_test_split(X_train, y_train, train_size=dataset_sample,
@@ -339,16 +352,17 @@ def dimensionality_reduction(run_type, explained_variance, X_train, y_train, num
 def run_dim_reduction(dataroot):
     scaler = RobustScaler()
     smote = (False, 0.6)
+    drop_cat = True
     training_sample = 0.3
     explained_variance = 0.95
     num_clusters = 2
     n_components = 2
     print("Running dimensionality reduction on OCI dataset")
-    run_type, X_train, y_train = get_data_shoppers(dataroot, smote, scaler)
+    run_type, X_train, y_train = get_data_shoppers(dataroot, smote, scaler, drop_cat)
     dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_clusters, n_components)
     print("\n----------------------------------\n")
     print("Running dimensionality reduction on FAD dataset with num clusters: "+str(num_clusters))
-    run_type, X_train, y_train = get_data_ford(dataroot, training_sample, scaler)
+    run_type, X_train, y_train = get_data_ford(dataroot, training_sample, scaler, drop_cat)
     dimensionality_reduction(run_type, explained_variance, X_train, y_train, num_clusters, n_components)
 
 

@@ -4,7 +4,17 @@
 ### 1. [Supervised Learning](#supervised-learning) 
 ### 2. [Unsupervised Learning](#unsupervised-learning) 
 ### 3. [Dimensionality Reduction](#dimensionality-reduction)
-### 4. Reinforcement Learning
+### 4. [Reinforcement Learning](#reinforcement-learning)
+
+#### A note on software engineering:
+The software engineering found in these files I am not particularly proud of. There were a number of forces at work
+causing poor choices. The score you receive for OMSCS's Machine Learning homeworks is based completely on
+a 10 to 12 page report detailing experiments and analysis. Your code is only run or looked at if it's 
+flagged for suspicion. So there are no incentives to produce quality code and given that it is the most
+time consuming class in OMSCS, one has to make tough trade off decisions between analysis and code quality.
+As it was my first foray into ML-style code, a lot of learning occurred mid-programming that I wish
+I had time to apply via refactoring. In essence the programming was more exploratory that principled, 
+but it improved my intuition about how to structure a ML-programming task significantly.
 
 #### A note on commit messages: 
 This is a single-committer homework repo with many pushes 
@@ -17,7 +27,7 @@ how I operate in a team environment.
 ### To run the code (for the impatient):
 
 You should read all the context below, but if you've cloned the repo, you'll need to download the datasets and put them in the
-`/supervised_learning/data` folder. The links above contain easy-to-find links to download.
+`/supervised_learning/data` folder. The links below contain easy-to-find links to download.
 Note Online Shopping Intention has a single CSV while Ford Alertness was already split into
 Train/Test/Solution. All of these CSVs should be in `/data`
 
@@ -225,5 +235,100 @@ cleaner and easier to grok. Again, this being my first foray into ML code, a lot
 
 ***
 ## Dimensionality Reduction
+
+### To run the code (for the impatient):
+
+You should read all the context below, but if you've cloned the repo, you'll need to download the Ford Alertness dataset
+`/unsupervised_learning/data` folder. The links (in the supervised learning section) contain easy-to-find links to download.
+Note the Ford Alertness data was already split into
+Train/Test/Solution. All of these CSVs should be in `/data`
+
+I installed [miniconda](https://docs.conda.io/en/latest/miniconda.html) in order to create
+a unique environment for this runtime. I then created the below environment.yml file in /supervised_learning/:
+```yml
+name: dim_reduction
+dependencies:
+- python=3.9
+- numpy=1.20.3
+- matplotlib=3.4
+- pandas=1.3.1
+- scikit-learn=0.24.2
+- pip 
+- pip: 
+  - pprofile==2.0.2 
+  - jsons==0.8.8 
+  - imbalanced-learn==0.8.0
+  - yellowbrick==1.3.post1
+  - scipy==1.7.1
+  - kmodes==0.11.1
+  - plotnine==0.8.0
+```
+
+Create the environment using this command (from /dimensionality_reduction/)
+
+`conda env create --file environment.yml`
+
+Activate the environment with:
+
+`conda activate dim_reduction`
+
+The multiple files in this repo reflect the somewhat disjointed nature of the assignment. There were multiple
+parts with a large number of experiments to be run. In earnest, attempting to run this code likely requires 
+an understanding of the code itself.
+
+- `bench_clustering.py` was used after tuning dimensionality reduction techniques to benchmark how well the data clustered with or without DR applied.
+  * `python bench_clustering.py dr` should run this file.
+- `k_prototypes.py` was used to test clustering results using the k_prototypes algorithm which accounts for categorial and continuous data.
+  * `python k_prototypes.py clustering` should run this file.
+- `k_validation.py` was specifically used to analyze silhoutte scores with multiple k values and all possible distance metrics.
+  * `python k_validation.py clustering` should run this file
+- `main.py` my initial code file which was used to produce elbow plots across three cluster scoring techniques for each dataset. 
+  It was also used for determining the number of components for each DR techinque.
+  * `python main.py clustering` and `python main.py dr` should run the two options in this file
+- `neural_net.py` contains all of the neural net code, that is, the code that applies DR techinques and re-tunes the neural net 
+  from the supervised learning assignment and adds the clustered labels as extra features and runs the NN again.
+  * `python neural_net.py nn` should run this file
+
+## About the Assignment:
+
+For this assignment, we were tasked with taking the two datasets we chose in the Supervised Learning assignment
+and:
+- Running and evaluating KMeans/Expectation Maximization clustering on them
+- Tuning and applying dimensionality reduction techniques: 
+  * Principal Components Analysis (PCA) 
+  * Independent Components Analysis (ICA) 
+  * Random Projection (RP)
+  * One of our choosing (I chose to use the feature importance array returned by a Random Forest Classifier (RFC))
+- Comparing the results of clustering on the raw data and clustering on the DR data
+- Picking one of the datasets, applying the DR techniques and re-tuning and running our Neural Network from the Supervised Learning assignment
+- Doing the same as above, but adding the clustered labels as a new feature in the dataset
+
+Because my data didn't cluster particularly well (when compared to the true labelings) I also tried more
+recent clustering algorithms like k_prototypes. 
+
+I had hypothesized during the Supervised Learning assignments that the FAD dataset (which I chose here) 
+contained a lot of unnecessary features; as a result of this assignment, the RFC DR technique produced 
+the best NN accuracy, 5% higher than in the Supervised Learning assignment and reduced the dataset from
+30 features to 6 which I thought was pretty cool.
+
+## About the code:
+The code starts by producing elbow plots and silhouette analysis using both KMeans clustering and
+EM clustering. The goal was to find the best k value for further analysis. The code then determines
+the best number of components for PCA, ICA and RP and the best set of features given RFC's feature importance
+array. KMeans and EM are applied to each dimensionality reduced dataset across all 4 techniques using the k
+value we determined in part 1. The resulting clustering is evaluated using a variety of clustering scores,
+homogeneity, completeness, v_measure, rand index and mutual information. One dataset is chosen (I chose FAD),
+each DR techinque is applied and our Neural Network from the Supervised Learning assignment is trained on
+the reduced dataset. The results are calculated and plotted. Finally the labels provided by KMeans and EM
+clustering are added as extra features to the dimensionality reduced dataset and the NN is trained again.
+The results are calculated and plotted.
+
+Of all the assignments, this code could use improving the most. The most glaring code smell is
+the fact that the get_data functions for each dataset are not defined in a single file and re-used
+throughout. Instead they are *gasp* copy/pasted and modified. It pains me to write this because I know
+how wrong it is, but I was really strapped for time on this one.
+
+***
+## Reinforcement Learning
 
 WIP
