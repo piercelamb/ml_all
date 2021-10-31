@@ -13,7 +13,7 @@ a 10 to 12 page report detailing experiments and analysis. Your code is only run
 flagged for suspicion. So there are no incentives to produce quality code and given that it is the most
 time consuming class in OMSCS, one has to make tough trade off decisions between analysis and code quality.
 As it was my first foray into ML-style code, a lot of learning occurred mid-programming that I wish
-I had time to apply via refactoring. In essence the programming was more exploratory that principled, 
+I had time to apply via refactoring. In essence the programming was more exploratory than principled, 
 but it improved my intuition about how to structure a ML-programming task significantly.
 
 #### A note on commit messages: 
