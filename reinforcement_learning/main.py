@@ -9,16 +9,23 @@ import matplotlib.pyplot as plt
 matplotlib.use("TkAgg")
 import gym
 from gym.envs.toy_text.frozen_lake import generate_random_map
+import time
 
 RANDOM_SEED = 1337
 
-def plot_env(env, figsize, policy=[]):
+def plot_env(env, figsize, title, policy=[]):
     print("Plotting lake with figsize: "+str(figsize))
     color_map = {
         'S': 'c',
         'F': 'w',
         'H': 'r',
         'G': 'g'
+    }
+    arrows = {
+        0: '←',
+        1: '↓',
+        2: '→',
+        3: '↑'
     }
     tiles = env.ncol
     figure = plt.figure(figsize=(figsize, figsize))
@@ -36,7 +43,7 @@ def plot_env(env, figsize, policy=[]):
             if policy:
                pass
 
-    plt.savefig('lake_'+str(figsize)+'.png')
+    plt.savefig(title)
 
 def get_transitions_rewards(env, map_size):
     np_size = map_size * map_size
@@ -61,56 +68,60 @@ def get_transitions_rewards(env, map_size):
                 old_state = new_state
     return transitions, rewards
 
-def run_value(transitions, rewards, discounts, epsilons, map_size):
+def set_run_data(runner, run_df, run_data, discount, epsilon):
+    best_run = run_data[-1]
+
+    max_rewards, mean_rewards, errors = [], [], []
+    for run in run_data:
+        max_rewards.append(run['Max V'])
+        mean_rewards.append(run['Mean V'])
+        errors.append(run['Error'])
+
+    col = str(discount)+'_'+str(epsilon)
+    run_df.at['time', col] = best_run['Time']
+    run_df.at['iterations', col] = best_run['Iteration']
+    run_df.at['max_reward', col] = best_run['Max V']
+    run_df.at['max_error', col] = best_run['Error']
+    run_df.at['policy', col] = runner.policy
+
+
+def run_value(env, transitions, rewards, discounts, epsilons, map_size):
     print("Running value iterations with map size "+str(map_size))
-    columns = ['gamma', 'epsilon', 'time', 'iterations', 'reward', 'average_steps', 'steps_stddev', 'success_pct',
-               'policy', 'mean_rewards', 'max_rewards', 'error']
-    data = pd.DataFrame(0.0, index=np.arange(len(discounts) * len(epsilons)), columns=columns)
-
-    print('Gamma,\tEps,\tTime,\tIter,\tReward')
-    print(80*'_')
-
-    testNum = 0
+    # columns = ['gamma', 'epsilon', 'time', 'iterations', 'reward', 'average_steps', 'steps_stddev', 'success_pct',
+    #            'policy', 'mean_rewards', 'max_rewards', 'error']
+    index = ['time', 'iterations', 'reward', 'mean_rewards', 'max_rewards', 'error', 'policy']
+    columns = []
     for discount in discounts:
-        print("Testing discount: "+str(discount))
         for epsilon in epsilons:
-            print("Testing epsilon: "+str(epsilon))
+            columns.append(str(discount)+'_'+str(epsilon))
+    run_df = pd.DataFrame(columns=columns, index=index)
+    start = time.time()
+    for discount in discounts:
+        #print("Testing discount: "+str(discount))
+        for epsilon in epsilons:
+            #print("Testing epsilon: "+str(epsilon))
             #converges when either max iter hit or the maximum change in value function falls
             #below the passed epsilon value
             runner = ValueIteration(transitions, rewards, epsilon=epsilon, gamma=discount)
             run_data = runner.run()
             # for dict in run_data:
             #     print(dict)'
-            best_run = run_data[-1]
+            set_run_data(runner, run_df, run_data, discount, epsilon)
+    finish = time.time() - start
+    print("Value Iteration completed in: "+str(finish))
 
-            Time = best_run["Time"]
-            iters = best_run["Iteration"]
-            maxR = best_run["Max V"]
+    for col, val in run_df.loc['policy'].items():
+        steps, steps_stddev, failures = get_score(env, val)
 
-            max_rewards, mean_rewards, errors = [], [], []
-            for run in run_data:
-                max_rewards.append(run['Max V'])
-                mean_rewards.append(run['Mean V'])
-                errors.append(run['Error'])
-
-            data['gamma'][testNum] = discount
-            data['epsilon'][testNum] = epsilon
-            data['time'][testNum] = Time
-            data['iterations'][testNum] = iters
-            data['reward'][testNum] = maxR
-            data['mean_rewards'][testNum] = {tuple(mean_rewards)}
-            data['max_rewards'][testNum] = {tuple(max_rewards)}
-            data['error'][testNum] = {tuple(errors)}
-            data['policy'][testNum] = {runner.policy}
-
-            print('%.2f,\t%.0E,\t%.2f,\t%d,\t%f' % (discount, epsilon, Time, iters, maxR))
-
-            testNum = testNum + 1
-
-    print(data)
-    exit(1)
+    # for i, p in enumerate(policies):
+    #     pol = list(p)[0]
+    #     steps, steps_stddev, failures = get_score(env, pol, showResults)
+    #     data['average_steps'][i] = steps
+    #     data['steps_stddev'][i] = steps_stddev
+    #     data['success_pct'][i] = 100 - failures
+    # exit(1)
 def run_lake():
-    map_size = 6
+    map_size = 4
     discounts = [0.1, 0.3, 0.5, 0.8]
     epsilons = [0.001, 0.00001, 0.0000001, 0.000000001]
     print("Running lake problem with map size "+str(map_size))
@@ -118,9 +129,9 @@ def run_lake():
 
     env = gym.make("FrozenLake-v1", desc=random_map).unwrapped
     env.max_episode_steps=300
-    plot_env(env, map_size)
+    plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
     transitions, rewards = get_transitions_rewards(env, map_size)
-    run_value(transitions, rewards, discounts, epsilons, map_size)
+    run_value(env, transitions, rewards, discounts, epsilons, map_size)
     #run_policy()
     #run_Q()
 
