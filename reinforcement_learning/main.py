@@ -10,6 +10,7 @@ matplotlib.use("TkAgg")
 import gym
 from gym.envs.toy_text.frozen_lake import generate_random_map
 import time
+from itertools import cycle, islice
 
 RANDOM_SEED = 1337
 
@@ -223,6 +224,30 @@ def run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alph
 
     return run_df
 
+def analyze_mdp(type, df):
+    sorted_df = df.sort_values(['success', 'avg_steps'], ascending=[True, False], axis=1)
+    top_5 = sorted_df[sorted_df.columns[-5:]]
+    top_5 = top_5.T
+    if type == 'value':
+        plot_metadata = {
+            'success':{'xlabel':"Discount and Epsilon with '_' seperator", 'title':"Success vs Discount & Epsilon", 'ylabel':"Success % over 1000 episodes"},
+            'avg_steps':{'xlabel':"Discount and Epsilon with '_' seperator", 'title':"Avg Steps vs Discount & Epsilon", 'ylabel':"Avg steps over 1000 episodes"},
+            'time':{'xlabel':"Discount and Epsilon with '_' seperator", 'title':"Time vs Discount & Epsilon", 'ylabel':"Time to converge"},
+            'iterations': {'xlabel': "Discount and Epsilon with '_' seperator", 'title': "Iterations vs Discount & Epsilon", 'ylabel': "Iterations to converge"}
+        }
+    if type == 'policy':
+        plot_metadata = {
+            'success':{'xlabel':"Discount Values", 'title':"Success vs Discount", 'ylabel':"Success % over 1000 episodes"},
+            'avg_steps':{'xlabel':"Discount Values", 'title':"Avg Steps vs Discount", 'ylabel':"Avg steps over 1000 episodes"},
+            'time': {'xlabel': "Discount Values", 'title': "Time vs Discount",'ylabel': "Time to converge"},
+            'iterations': {'xlabel': "Discount Values",'title': "Iterations vs Discount", 'ylabel': "Iterations to converge"}
+        }
+    for y, metadata in plot_metadata.items():
+        top_5.plot(y=y, xlabel=metadata['xlabel'], ylabel=metadata['ylabel'], title=metadata['title'], kind='bar', rot=0)
+        plt.savefig(type+'_'+y+'.png')
+        plt.clf()
+
+
 def run_lake():
     map_size = 4
     #TODO realized for lake that higher discounts and lower epsilons were better early on
@@ -234,15 +259,19 @@ def run_lake():
     max_iters = [10000, 100000]
 
     print("Running lake problem with map size "+str(map_size))
-    random_map = generate_random_map(size=map_size, p=0.8)
-    env = gym.make("FrozenLake-v1", desc=random_map).unwrapped
+    # random_map = generate_random_map(size=map_size, p=0.8)
+    # env = gym.make("FrozenLake-v1", desc=random_map).unwrapped
+    env = gym.make('FrozenLake-v1').unwrapped
     env.max_episode_steps=300
     plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
     transitions, rewards = get_transitions_rewards(env, map_size)
-
-    #value_res = run_mdp('value', env, transitions, rewards, discounts, map_size, epsilons)
-    #policy_res = run_mdp('policy', env, transitions, rewards, discounts, map_size)
-    q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
+    type = 'value'
+    value_res = run_mdp(type, env, transitions, rewards, discounts, map_size, epsilons)
+    analyze_mdp(type, value_res)
+    type = 'policy'
+    policy_res = run_mdp(type, env, transitions, rewards, discounts, map_size)
+    analyze_mdp(type, policy_res)
+    #q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
 
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
