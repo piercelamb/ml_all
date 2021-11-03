@@ -113,7 +113,7 @@ def get_policy_results(env, policy):
 
     return failed, avg_steps
 
-def run_mdp(type, env, transitions, rewards, discounts, map_size, epsilons=None):
+def run_mdp(type, transitions, rewards, discounts, map_size, env=None, epsilons=None):
     print("Running "+type+" iterations with map size "+str(map_size))
     index = [
         'time',
@@ -151,12 +151,14 @@ def run_mdp(type, env, transitions, rewards, discounts, map_size, epsilons=None)
 
     finish = time.time() - start
     print(type+" Iteration completed in: "+str(finish))
-
-    print("Getting policy scores")
-    for col, val in run_df.loc['policy'].items():
-        failed, avg_steps = get_policy_results(env, val)
-        run_df.at['success', col] = 100 - failed
-        run_df.at['avg_steps', col] = avg_steps
+    print(run_df)
+    exit(1)
+    if env:
+        print("Getting policy scores")
+        for col, val in run_df.loc['policy'].items():
+            failed, avg_steps = get_policy_results(env, val)
+            run_df.at['success', col] = 100 - failed
+            run_df.at['avg_steps', col] = avg_steps
 
     return run_df
 
@@ -277,13 +279,13 @@ def run_lake():
     plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
     transitions, rewards = get_transitions_rewards(env, map_size)
     type = 'value'
-    value_res = run_mdp(type, env, transitions, rewards, discounts, map_size, epsilons)
+    value_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env, epsilons=epsilons)
     analyze_mdp(type, value_res)
     type = 'policy'
-    policy_res = run_mdp(type, env, transitions, rewards, discounts, map_size)
+    policy_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env)
     analyze_mdp(type, policy_res)
     q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
-    type='QL'
+    type = 'QL'
     analyze_mdp(type, q_res)
 
 def run_forest():
@@ -297,18 +299,18 @@ def run_forest():
     max_iters = [10000, 100000]
 
     print("Running forest problem with map size "+str(map_size))
-    transitions, rewards = hiive.mdptoolbox.example.forest(S=map_size)
+    transitions, rewards = mdp.example.forest(S=map_size)
     #plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
     #transitions, rewards = get_transitions_rewards(env, map_size)
     type = 'value'
-    value_res = run_mdp(type, env, transitions, rewards, discounts, map_size, epsilons)
-    analyze_mdp(type, value_res)
-    type = 'policy'
-    policy_res = run_mdp(type, env, transitions, rewards, discounts, map_size)
-    analyze_mdp(type, policy_res)
-    q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
-    type='QL'
-    analyze_mdp(type, q_res)
+    value_res = run_mdp(type, transitions, rewards, discounts, map_size, epsilons=epsilons)
+    # analyze_mdp(type, value_res)
+    # type = 'policy'
+    # policy_res = run_mdp(type, transitions, rewards, discounts, map_size)
+    # analyze_mdp(type, policy_res)
+    # q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
+    # type='QL'
+    # analyze_mdp(type, q_res)
 
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
