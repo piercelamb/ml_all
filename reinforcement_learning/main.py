@@ -87,7 +87,6 @@ def set_run_data(runner, run_df, run_data, discount, epsilon=None):
 #derived from
 #https://tinyurl.com/3n8vdj8
 def get_policy_results(env, policy):
-    print("Getting policy scores")
     num_misses = 0
     steps = []
     for episode in range(0, 1000):
@@ -153,6 +152,7 @@ def run_mdp(type, env, transitions, rewards, discounts, map_size, epsilons=None)
     finish = time.time() - start
     print(type+" Iteration completed in: "+str(finish))
 
+    print("Getting policy scores")
     for col, val in run_df.loc['policy'].items():
         failed, avg_steps = get_policy_results(env, val)
         run_df.at['success', col] = 100 - failed
@@ -185,7 +185,7 @@ def q_create_df(discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_i
 def analyze_mdp(type, df):
     sorted_df = df.sort_values(['success', 'avg_steps'], ascending=[True, False], axis=1)
     top_5 = sorted_df[sorted_df.columns[-5:]]
-    best_run = df.iloc[:,-1:].drop('policy')
+    best_run = top_5.iloc[:,-1:].drop('policy')
     print("The best run was: ")
     print(best_run)
     top_5 = top_5.T
@@ -220,7 +220,6 @@ def analyze_mdp(type, df):
 
 def set_run_data_q(runner, run_df, run_data, discount, epsilon, alpha, alpha_decay, epsilon_decay, max_iter):
     best_run = run_data[-1]
-    print(best_run)
     col = str(discount)+'_'+str(epsilon)+'_'+str(epsilon_decay)+'_'+str(alpha)+'_'+str(alpha_decay)+'_'+str(max_iter)
     run_df.at['time', col] = best_run['Time']
     run_df.at['iterations', col] = best_run['Iteration']
@@ -252,7 +251,7 @@ def run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alph
 
     finish = time.time() - start
     print("QLearning completed in: " + str(finish))
-
+    print("Getting policy scores")
     for col, val in run_df.loc['policy'].items():
         failed, avg_steps = get_policy_results(env, val)
         run_df.at['success', col] = 100 - failed
@@ -287,12 +286,36 @@ def run_lake():
     type='QL'
     analyze_mdp(type, q_res)
 
+def run_forest():
+    map_size = 700
+    #TODO realized for lake that higher discounts and lower epsilons were better early on
+    discounts = [0.7, 0.8, 0.9]
+    epsilons = [0.00001, 0.0000001, 0.000000001]
+    alphas = [0.01, 0.1, 0.2]
+    alpha_decays = [0.7, 0.8, 0.9]
+    epsilon_decays = [0.7, 0.8, 0.9]
+    max_iters = [10000, 100000]
+
+    print("Running forest problem with map size "+str(map_size))
+    transitions, rewards = hiive.mdptoolbox.example.forest(S=map_size)
+    #plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
+    #transitions, rewards = get_transitions_rewards(env, map_size)
+    type = 'value'
+    value_res = run_mdp(type, env, transitions, rewards, discounts, map_size, epsilons)
+    analyze_mdp(type, value_res)
+    type = 'policy'
+    policy_res = run_mdp(type, env, transitions, rewards, discounts, map_size)
+    analyze_mdp(type, policy_res)
+    q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
+    type='QL'
+    analyze_mdp(type, q_res)
+
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
     if passed_arg == 'lake':
         run_lake()
-    # elif passed_arg == 'forest':
-    #     run_forest()
+    elif passed_arg == 'forest':
+        run_forest()
     else:
         print("please run with either 'value', 'policy' or 'q'")
         exit(146)
