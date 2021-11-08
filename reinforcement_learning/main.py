@@ -1,6 +1,7 @@
 import sys
 import pprint
 import hiive.mdptoolbox as mdp
+from hiive.mdptoolbox.example import forest
 from hiive.mdptoolbox.mdp import ValueIteration, PolicyIteration, QLearning
 import numpy as np
 import pandas as pd
@@ -113,6 +114,99 @@ def get_policy_results(env, policy):
 
     return failed, avg_steps
 
+def q_create_df(discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters):
+    index = [
+        'time',
+        'iterations',
+        'reward',
+        'Max V',
+        'Mean V',
+        'Error',
+        'avg_steps',
+        'success',
+        'policy'
+    ]
+    columns = []
+    for discount in discounts:
+        for epsilon in epsilons:
+            for epsilon_decay in epsilon_decays:
+                for alpha in alphas:
+                    for alpha_decay in alpha_decays:
+                        for max_iter in max_iters:
+                            columns.append(str(discount)+'_'+str(epsilon)+'_'+str(epsilon_decay)+'_'+str(alpha)+'_'+str(alpha_decay)+'_'+str(max_iter))
+    return pd.DataFrame(columns=columns, index=index)
+
+
+
+def set_run_data_q(runner, run_df, run_data, discount, epsilon, alpha, alpha_decay, epsilon_decay, max_iter):
+    best_run = run_data[-1]
+    col = str(discount)+'_'+str(epsilon)+'_'+str(epsilon_decay)+'_'+str(alpha)+'_'+str(alpha_decay)+'_'+str(max_iter)
+    run_df.at['time', col] = best_run['Time']
+    run_df.at['iterations', col] = best_run['Iteration']
+    run_df.at['reward', col] = best_run['Reward']
+    run_df.at['Max V', col] = best_run['Max V']
+    run_df.at['Mean V', col] = best_run['Mean V']
+    run_df.at['Error', col] = best_run['Error']
+    run_df.at['policy', col] = runner.policy
+
+def run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters, env=None):
+    print("Running QLearning with map size "+str(map_size))
+    run_df = q_create_df(discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
+    start = time.time()
+    for d in discounts:
+        print("trying discount: "+str(d))
+        for e in epsilons:
+            print("trying epsilon: "+str(e))
+            for e_d in epsilon_decays:
+                print("trying e_decay: "+str(e_d))
+                for a in alphas:
+                    print("trying alpha: "+str(a))
+                    for a_d in alpha_decays:
+                        print("trying a_decay: "+str(a_d))
+                        for i in max_iters:
+                            print("trying iters: "+str(i))
+                            runner = QLearning(transitions, rewards, gamma=d, epsilon=e, epsilon_decay=e_d, alpha=a, alpha_decay=a_d, n_iter=i)
+                            run_data = runner.run()
+                            set_run_data_q(runner, run_df, run_data, d, e, a, a_d, e_d, i)
+
+    finish = time.time() - start
+    print("QLearning completed in: " + str(finish))
+    print("Getting policy scores")
+    for col, val in run_df.loc['policy'].items():
+        failed, avg_steps = get_policy_results(env, val)
+        run_df.at['success', col] = 100 - failed
+        run_df.at['avg_steps', col] = avg_steps
+
+    return run_df
+
+def run_lake():
+    map_size = 4
+    game = 'lake'
+    #TODO realized for lake that higher discounts and lower epsilons were better early on
+    discounts = [0.7, 0.8, 0.9]
+    epsilons = [0.00001, 0.0000001, 0.000000001]
+    alphas = [0.01, 0.1, 0.2]
+    alpha_decays = [0.7, 0.8, 0.9]
+    epsilon_decays = [0.7, 0.8, 0.9]
+    max_iters = [10000, 100000]
+
+    print("Running lake problem with map size "+str(map_size))
+    # random_map = generate_random_map(size=map_size, p=0.8)
+    # env = gym.make("FrozenLake-v1", desc=random_map).unwrapped
+    env = gym.make('FrozenLake-v1').unwrapped
+    env.max_episode_steps=300
+    plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
+    transitions, rewards = get_transitions_rewards(env, map_size)
+    type = 'value'
+    value_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env, epsilons=epsilons)
+    analyze_mdp(game, type, value_res)
+    type = 'policy'
+    policy_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env)
+    analyze_mdp(game, type, policy_res)
+    q_res = run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters, env)
+    type = 'QL'
+    analyze_mdp(game, type, q_res)
+
 def run_mdp(type, transitions, rewards, discounts, map_size, env=None, epsilons=None):
     print("Running "+type+" iterations with map size "+str(map_size))
     index = [
@@ -150,9 +244,7 @@ def run_mdp(type, transitions, rewards, discounts, map_size, env=None, epsilons=
             set_run_data(runner, run_df, run_data, discount)
 
     finish = time.time() - start
-    print(type+" Iteration completed in: "+str(finish))
-    print(run_df)
-    exit(1)
+    print(type+" finished in: "+str(finish))
     if env:
         print("Getting policy scores")
         for col, val in run_df.loc['policy'].items():
@@ -162,155 +254,74 @@ def run_mdp(type, transitions, rewards, discounts, map_size, env=None, epsilons=
 
     return run_df
 
-def q_create_df(discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters):
-    index = [
-        'time',
-        'iterations',
-        'reward',
-        'Max V',
-        'Mean V',
-        'Error',
-        'avg_steps',
-        'success',
-        'policy'
-    ]
-    columns = []
-    for discount in discounts:
-        for epsilon in epsilons:
-            for epsilon_decay in epsilon_decays:
-                for alpha in alphas:
-                    for alpha_decay in alpha_decays:
-                        for max_iter in max_iters:
-                            columns.append(str(discount)+'_'+str(epsilon)+'_'+str(epsilon_decay)+'_'+str(alpha)+'_'+str(alpha_decay)+'_'+str(max_iter))
-    return pd.DataFrame(columns=columns, index=index)
-
-def analyze_mdp(type, df):
-    sorted_df = df.sort_values(['success', 'avg_steps'], ascending=[True, False], axis=1)
-    top_5 = sorted_df[sorted_df.columns[-5:]]
-    best_run = top_5.iloc[:,-1:].drop('policy')
-    print("The best run was: ")
-    print(best_run)
+def analyze_mdp(game, type, df):
+    if game == 'lake':
+        sorted_df = df.sort_values(['success', 'avg_steps'], ascending=[True, False], axis=1)
+    else:
+        sorted_df = df.sort_values('reward', axis=1)
+    top_5 = sorted_df[sorted_df.columns[-5:]].drop('policy')
+    print(top_5)
+    # best_run = top_5.iloc[:,-1:]
+    # # print("The best run was: ")
+    # # print(best_run)
     top_5 = top_5.T
     if type == 'value':
+        xlabel = "Discount and Epsilon with '_' seperator"
         plot_metadata = {
-            'success':{'xlabel':"Discount and Epsilon with '_' seperator", 'title':"Success vs Discount & Epsilon", 'ylabel':"Success % over 1000 episodes"},
-            'avg_steps':{'xlabel':"Discount and Epsilon with '_' seperator", 'title':"Avg Steps vs Discount & Epsilon", 'ylabel':"Avg steps over 1000 episodes"},
-            'time':{'xlabel':"Discount and Epsilon with '_' seperator", 'title':"Time vs Discount & Epsilon", 'ylabel':"Time to converge"},
-            'iterations': {'xlabel': "Discount and Epsilon with '_' seperator", 'title': "Iterations vs Discount & Epsilon", 'ylabel': "Iterations to converge"}
+            'success':{'xlabel':xlabel, 'title':"Success vs Discount & Epsilon", 'ylabel':"Value iter, success % over 1000 episodes"},
+            'avg_steps':{'xlabel':xlabel, 'title':"Avg Steps vs Discount & Epsilon", 'ylabel':"Value iter, avg steps over 1000 episodes"},
+            'time':{'xlabel':xlabel, 'title':"Time vs Discount & Epsilon", 'ylabel':"Value Iter time to converge"},
+            'iterations': {'xlabel': xlabel, 'title': "Iterations vs Discount & Epsilon", 'ylabel': "Value Iterations to converge "},
+            'reward':{'xlabel':xlabel, 'ylabel': "Reward", 'title': 'Value Iter Top 5 Reward'}
         }
-    if type == 'policy':
+    elif type == 'policy':
+        xlabel = "Discount Values"
         plot_metadata = {
-            'success':{'xlabel':"Discount Values", 'title':"Success vs Discount", 'ylabel':"Success % over 1000 episodes"},
-            'avg_steps':{'xlabel':"Discount Values", 'title':"Avg Steps vs Discount", 'ylabel':"Avg steps over 1000 episodes"},
-            'time': {'xlabel': "Discount Values", 'title': "Time vs Discount",'ylabel': "Time to converge"},
-            'iterations': {'xlabel': "Discount Values",'title': "Iterations vs Discount", 'ylabel': "Iterations to converge"}
+            'success':{'xlabel':xlabel, 'title':"Success vs Discount", 'ylabel':"Policy iter, success % over 1000 episodes"},
+            'avg_steps':{'xlabel':xlabel, 'title':"Avg Steps vs Discount", 'ylabel':"Policy iter, avg steps over 1000 episodes"},
+            'time': {'xlabel': xlabel, 'title': "Time vs Discount",'ylabel': "Policy iter, time to converge"},
+            'iterations': {'xlabel': xlabel,'title': "Iterations vs Discount", 'ylabel': "Policy iterations to converge"},
+            'reward': {'xlabel': xlabel, 'ylabel': "Reward", 'title': 'Policy iter, top 5 Reward'}
         }
     else:
+        xlabel='All hyper params'
         plot_metadata = {
-            'success':{'xlabel':"All hyper params", 'title':"Success vs Hyper Params", 'ylabel':"Success % over 1000 episodes"},
-            'avg_steps':{'xlabel':"All hyper params", 'title':"Avg Steps vs Hyper Params", 'ylabel':"Avg steps over 1000 episodes"},
-            'time': {'xlabel': "All hyper params", 'title': "Time vs Hyper Params",'ylabel': "Time to converge"},
-            'iterations': {'xlabel': "All hyper params",'title': "Iterations vs Hyper Params", 'ylabel': "Iterations to converge"}
+            'success':{'xlabel':xlabel, 'title':"Success vs Hyper Params", 'ylabel':"QL, Success % over 1000 episodes"},
+            'avg_steps':{'xlabel':xlabel, 'title':"Avg Steps vs Hyper Params", 'ylabel':"QL, Avg steps over 1000 episodes"},
+            'time': {'xlabel':xlabel, 'title': "Time vs Hyper Params",'ylabel': "QL, Time to converge"},
+            'iterations': {'xlabel': xlabel,'title': "Iterations vs Hyper Params", 'ylabel': "QL, Iterations to converge"},
+            'reward': {'xlabel': xlabel, 'ylabel': "Reward", 'title': 'QL, top 5 Reward'}
         }
     for y, metadata in plot_metadata.items():
         if type == 'QL':
             top_5.plot(y=y, xlabel=metadata['xlabel'], ylabel=metadata['ylabel'], title=metadata['title'], kind='bar')
         else:
             top_5.plot(y=y, xlabel=metadata['xlabel'], ylabel=metadata['ylabel'], title=metadata['title'], kind='bar', rot=0)
-        plt.savefig(type+'_'+y+'.png')
+        plt.savefig(game+'_'+type+'_'+y+'.png')
         plt.clf()
-
-def set_run_data_q(runner, run_df, run_data, discount, epsilon, alpha, alpha_decay, epsilon_decay, max_iter):
-    best_run = run_data[-1]
-    col = str(discount)+'_'+str(epsilon)+'_'+str(epsilon_decay)+'_'+str(alpha)+'_'+str(alpha_decay)+'_'+str(max_iter)
-    run_df.at['time', col] = best_run['Time']
-    run_df.at['iterations', col] = best_run['Iteration']
-    run_df.at['reward', col] = best_run['Reward']
-    run_df.at['Max V', col] = best_run['Max V']
-    run_df.at['Mean V', col] = best_run['Mean V']
-    run_df.at['Error', col] = best_run['Error']
-    run_df.at['policy', col] = runner.policy
-
-def run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters):
-    print("Running QLearning with map size "+str(map_size))
-    run_df = q_create_df(discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
-    start = time.time()
-    for d in discounts:
-        print("trying discount: "+str(d))
-        for e in epsilons:
-            print("trying epsilon: "+str(e))
-            for e_d in epsilon_decays:
-                print("trying e_decay: "+str(e_d))
-                for a in alphas:
-                    print("trying alpha: "+str(a))
-                    for a_d in alpha_decays:
-                        print("trying a_decay: "+str(a_d))
-                        for i in max_iters:
-                            print("trying iters: "+str(i))
-                            runner = QLearning(transitions, rewards, gamma=d, epsilon=e, epsilon_decay=e_d, alpha=a, alpha_decay=a_d, n_iter=i)
-                            run_data = runner.run()
-                            set_run_data_q(runner, run_df, run_data, d, e, a, a_d, e_d, i)
-
-    finish = time.time() - start
-    print("QLearning completed in: " + str(finish))
-    print("Getting policy scores")
-    for col, val in run_df.loc['policy'].items():
-        failed, avg_steps = get_policy_results(env, val)
-        run_df.at['success', col] = 100 - failed
-        run_df.at['avg_steps', col] = avg_steps
-
-    return run_df
-
-def run_lake():
-    map_size = 4
-    #TODO realized for lake that higher discounts and lower epsilons were better early on
-    discounts = [0.7, 0.8, 0.9]
-    epsilons = [0.00001, 0.0000001, 0.000000001]
-    alphas = [0.01, 0.1, 0.2]
-    alpha_decays = [0.7, 0.8, 0.9]
-    epsilon_decays = [0.7, 0.8, 0.9]
-    max_iters = [10000, 100000]
-
-    print("Running lake problem with map size "+str(map_size))
-    # random_map = generate_random_map(size=map_size, p=0.8)
-    # env = gym.make("FrozenLake-v1", desc=random_map).unwrapped
-    env = gym.make('FrozenLake-v1').unwrapped
-    env.max_episode_steps=300
-    plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
-    transitions, rewards = get_transitions_rewards(env, map_size)
-    type = 'value'
-    value_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env, epsilons=epsilons)
-    analyze_mdp(type, value_res)
-    type = 'policy'
-    policy_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env)
-    analyze_mdp(type, policy_res)
-    q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
-    type = 'QL'
-    analyze_mdp(type, q_res)
 
 def run_forest():
     map_size = 700
+    game = 'forest'
     #TODO realized for lake that higher discounts and lower epsilons were better early on
-    discounts = [0.7, 0.8, 0.9]
-    epsilons = [0.00001, 0.0000001, 0.000000001]
+    discounts = [0.1, 0.3, 0.6, 0.8, 0.999]
+    epsilons = [0.0001, 0.00001, 0.0000001, 0.000000001, 0.0000000000001]
     alphas = [0.01, 0.1, 0.2]
     alpha_decays = [0.7, 0.8, 0.9]
     epsilon_decays = [0.7, 0.8, 0.9]
     max_iters = [10000, 100000]
 
     print("Running forest problem with map size "+str(map_size))
-    transitions, rewards = mdp.example.forest(S=map_size)
-    #plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
-    #transitions, rewards = get_transitions_rewards(env, map_size)
+    transitions, rewards = forest(S=map_size)
     type = 'value'
     value_res = run_mdp(type, transitions, rewards, discounts, map_size, epsilons=epsilons)
-    # analyze_mdp(type, value_res)
-    # type = 'policy'
-    # policy_res = run_mdp(type, transitions, rewards, discounts, map_size)
-    # analyze_mdp(type, policy_res)
-    # q_res = run_Q(env, transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
-    # type='QL'
-    # analyze_mdp(type, q_res)
+    analyze_mdp(game, type, value_res)
+    type = 'policy'
+    policy_res = run_mdp(type, transitions, rewards, discounts, map_size)
+    analyze_mdp(game, type, policy_res)
+    q_res = run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
+    type='QL'
+    analyze_mdp(game, type, q_res)
 
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
