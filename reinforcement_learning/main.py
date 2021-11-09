@@ -171,11 +171,12 @@ def run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_dec
 
     finish = time.time() - start
     print("QLearning completed in: " + str(finish))
-    print("Getting policy scores")
-    for col, val in run_df.loc['policy'].items():
-        failed, avg_steps = get_policy_results(env, val)
-        run_df.at['success', col] = 100 - failed
-        run_df.at['avg_steps', col] = avg_steps
+    if env:
+        print("Getting policy scores")
+        for col, val in run_df.loc['policy'].items():
+            failed, avg_steps = get_policy_results(env, val)
+            run_df.at['success', col] = 100 - failed
+            run_df.at['avg_steps', col] = avg_steps
 
     return run_df
 
