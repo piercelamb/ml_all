@@ -184,12 +184,19 @@ def run_lake():
     map_size = 4
     game = 'lake'
     #TODO realized for lake that higher discounts and lower epsilons were better early on
-    discounts = [0.7, 0.8, 0.9]
-    epsilons = [0.00001, 0.0000001, 0.000000001]
-    alphas = [0.01, 0.1, 0.2]
-    alpha_decays = [0.7, 0.8, 0.9]
-    epsilon_decays = [0.7, 0.8, 0.9]
-    max_iters = [10000, 100000]
+    # discounts = [0.5, 0.6, 0.7, 0.8, 0.9]
+    # epsilons = [0.00001, 0.0000001, 0.000000001]
+    # alphas = [0.01, 0.1, 0.2]
+    # alpha_decays = [0.7, 0.8, 0.9]
+    # epsilon_decays = [0.7, 0.8, 0.9]
+    # max_iters = [10000, 100000]
+
+    discounts = [0.9]
+    epsilons = [0.0000001]
+    alphas = [0.01]
+    alpha_decays = [0.9]
+    epsilon_decays = [0.9]
+    max_iters = [1000000]
 
     print("Running lake problem with map size "+str(map_size))
     # random_map = generate_random_map(size=map_size, p=0.8)
@@ -199,11 +206,11 @@ def run_lake():
     plot_env(env, map_size, title='lake_'+str(map_size)+'.png')
     transitions, rewards = get_transitions_rewards(env, map_size)
     type = 'value'
-    value_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env, epsilons=epsilons)
-    analyze_mdp(game, type, value_res)
-    type = 'policy'
-    policy_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env)
-    analyze_mdp(game, type, policy_res)
+    #value_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env, epsilons=epsilons)
+    #analyze_mdp(game, type, value_res)
+    # type = 'policy'
+    # policy_res = run_mdp(type, transitions, rewards, discounts, map_size, env=env)
+    # analyze_mdp(game, type, policy_res)
     q_res = run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters, env)
     type = 'QL'
     analyze_mdp(game, type, q_res)
@@ -260,11 +267,13 @@ def analyze_mdp(game, type, df):
         sorted_df = df.sort_values(['success', 'avg_steps'], ascending=[True, False], axis=1)
     else:
         sorted_df = df.sort_values('reward', axis=1)
-    top_5 = sorted_df[sorted_df.columns[-5:]].drop('policy')
-    print(top_5)
-    # best_run = top_5.iloc[:,-1:]
-    # # print("The best run was: ")
-    # # print(best_run)
+    top_5 = sorted_df[sorted_df.columns[-5:]]
+    print(top_5.drop('policy'))
+    print(top_5.columns)
+    best_run = top_5.iloc[:,-1:]
+    print("The best policy was: ")
+    #pd.set_option('display.max_colwidth', 999)
+    print(best_run.loc['policy', :].tolist())
     top_5 = top_5.T
     if type == 'value':
         xlabel = "Discount and Epsilon with '_' seperator"
@@ -305,12 +314,28 @@ def run_forest():
     map_size = 700
     game = 'forest'
     #TODO realized for lake that higher discounts and lower epsilons were better early on
-    discounts = [0.1, 0.3, 0.6, 0.8, 0.999]
-    epsilons = [0.0001, 0.00001, 0.0000001, 0.000000001, 0.0000000000001]
+    discounts = [
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        0.99,
+        0.999,
+        #0.9999
+         #0.99,
+         #0.999
+                 ]
+    epsilons = [
+        0.00001,
+        0.0000001,
+        0.000000001,
+        0.0000000000001
+    ]
     alphas = [0.01, 0.1, 0.2]
     alpha_decays = [0.7, 0.8, 0.9]
     epsilon_decays = [0.7, 0.8, 0.9]
     max_iters = [10000, 100000]
+
 
     print("Running forest problem with map size "+str(map_size))
     transitions, rewards = forest(S=map_size)
@@ -320,9 +345,9 @@ def run_forest():
     type = 'policy'
     policy_res = run_mdp(type, transitions, rewards, discounts, map_size)
     analyze_mdp(game, type, policy_res)
-    q_res = run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
-    type='QL'
-    analyze_mdp(game, type, q_res)
+    # q_res = run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
+    # type='QL'
+    # analyze_mdp(game, type, q_res)
 
 if __name__ == "__main__":
     passed_arg = sys.argv[1]
