@@ -315,10 +315,10 @@ def run_forest():
     game = 'forest'
     #TODO realized for lake that higher discounts and lower epsilons were better early on
     discounts = [
-        0.6,
-        0.7,
-        0.8,
-        0.9,
+        # 0.6,
+        # 0.7,
+        # 0.8,
+        # 0.9,
         0.99,
         0.999,
         #0.9999
@@ -327,14 +327,14 @@ def run_forest():
                  ]
     epsilons = [
         0.00001,
-        0.0000001,
-        0.000000001,
+        # 0.0000001,
+        # 0.000000001,
         0.0000000000001
     ]
-    alphas = [0.01, 0.1, 0.2]
-    alpha_decays = [0.7, 0.8, 0.9]
-    epsilon_decays = [0.7, 0.8, 0.9]
-    max_iters = [10000, 100000]
+    alphas = [0.01, 0.1]
+    alpha_decays = [0.7, 0.9]
+    epsilon_decays = [0.7, 0.9]
+    max_iters = [10000000]
 
 
     print("Running forest problem with map size "+str(map_size))
