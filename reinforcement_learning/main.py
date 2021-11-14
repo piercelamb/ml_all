@@ -23,12 +23,6 @@ def plot_env(env, figsize, title, policy=[]):
         'H': 'r',
         'G': 'g'
     }
-    arrows = {
-        0: '←',
-        1: '↓',
-        2: '→',
-        3: '↑'
-    }
     tiles = env.ncol
     figure = plt.figure(figsize=(figsize, figsize))
     plt.axis('off')
@@ -272,7 +266,6 @@ def analyze_mdp(game, type, df):
     print(top_5.columns)
     best_run = top_5.iloc[:,-1:]
     print("The best policy was: ")
-    #pd.set_option('display.max_colwidth', 999)
     print(best_run.loc['policy', :].tolist())
     top_5 = top_5.T
     if type == 'value':
@@ -345,9 +338,9 @@ def run_forest():
     type = 'policy'
     policy_res = run_mdp(type, transitions, rewards, discounts, map_size)
     analyze_mdp(game, type, policy_res)
-    # q_res = run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
-    # type='QL'
-    # analyze_mdp(game, type, q_res)
+    q_res = run_Q(transitions, rewards, map_size, discounts, epsilons, alphas, alpha_decays, epsilon_decays, max_iters)
+    type='QL'
+    analyze_mdp(game, type, q_res)
 
 if __name__ == "__main__":
     passed_arg = sys.argv[1]

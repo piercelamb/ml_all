@@ -7,14 +7,14 @@
 ### 4. [Reinforcement Learning](#reinforcement-learning)
 
 #### A note on software engineering:
-The software engineering found in these files I am not particularly proud of. There were a number of forces at work
+The software engineering found in these files is more exploratory than principled. There were a number of forces at work
 causing poor choices. The score you receive for OMSCS's Machine Learning homeworks is based completely on
 a 10 to 12 page report detailing experiments and analysis. Your code is only run or looked at if it's 
 flagged for suspicion. So there are no incentives to produce quality code and given that it is the most
 time consuming class in OMSCS, one has to make tough trade off decisions between analysis and code quality.
 As it was my first foray into ML-style code, a lot of learning occurred mid-programming that I wish
-I had time to apply via refactoring. In essence the programming was more exploratory than principled, 
-but it improved my intuition about how to structure a ML-programming task significantly.
+I had time to apply via refactoring. While the programming was more exploratory than principled, 
+these assignments improved my intuition about how to structure a ML-programming task significantly.
 
 #### A note on commit messages: 
 This is a single-committer homework repo with many pushes 
@@ -331,4 +331,63 @@ how wrong it is, but I was really strapped for time on this one.
 ***
 ## Reinforcement Learning
 
-WIP
+### To run the code (for the impatient):
+
+You should read all the context below. Data is generated from within OpenAI Gym and MDPToolbox, so no
+data download is necessary.
+
+I installed [miniconda](https://docs.conda.io/en/latest/miniconda.html) in order to create
+a unique environment for this runtime. I then created the below environment.yml file in /reinforcement_learning/:
+```yml
+name: reinforcement
+dependencies:
+- python=3.9
+- numpy=1.20.3
+- matplotlib=3.4
+- pandas=1.3.1
+- scikit-learn=0.24.2
+- pip 
+- pip: 
+  - pprofile==2.0.2 
+  - jsons==0.8.8
+  - scipy==1.7.1
+  - mdptoolbox-hiive==4.0.3.1
+  - gym==0.21.0
+```
+
+Create the environment using this command (from /supervised_learning/)
+
+`conda env create --file environment.yml`
+
+Activate the environment with:
+
+`conda activate reinforcement`
+
+You can then run either the frozen lake problem or the forest management problem with:
+
+`path-to-conda-python main.py lake-or-forest`
+
+An example being:
+
+`/Users/plamb/opt/miniconda3/envs/reinforcement/bin/python main.py lake`
+
+## About the Assignment:
+
+For this assignment, we had to chose two Markov Decision Problems with at least one of them being
+a non-grid world problem. We had to structure the problems so we could execute Value Iteration and
+Policy Iteration as solutions to the problems. We then had execute a reinforcement learning algorithm of
+our choice (I chose Q Learning) to compare to Value/Policy Iteration. The goal was to analyze how
+the algorithms performed and how they compared to one another.
+
+## About the code:
+
+This assignment was a bit simpler than the previous three and allowed for a lot of re-usable code. Leveraging
+the OpenAI Gym library and MDPToolbox library, I was able to write one function to execute both VI and PI
+`run_mdp` and one function to analyze VI/PI and Qlearning `analyze_mdp`. These functions were reusable between both problems.
+All the code is captured in `main.py`. Like previous assignments, I attempted to structure the code
+to call a runner function for either problem where every hyperparameter setting could be tweaked so experiments
+are easily run by the user.
+
+Like the other assignments, the code could be improved by grouping similar code and moving it to
+its own files. The nested loop that optimizes the QLearner could likely be achieved in a more efficient,
+readable way.
