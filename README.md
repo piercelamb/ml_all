@@ -8,7 +8,7 @@
 
 #### A note on software engineering:
 The software engineering found in these files is more exploratory than principled. There were a number of forces at work
-causing poor choices. The score you receive for OMSCS's Machine Learning homeworks is based completely on
+causing the need to explore. The score you receive for OMSCS's Machine Learning homeworks is based completely on
 a 10 to 12 page report detailing experiments and analysis. Your code is only run or looked at if it's 
 flagged for suspicion. So there are no incentives to produce quality code and given that it is the most
 time consuming class in OMSCS, one has to make tough trade off decisions between analysis and code quality.
